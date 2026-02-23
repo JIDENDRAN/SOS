@@ -84,18 +84,22 @@ export default function App() {
     let reconnectTimer: NodeJS.Timeout;
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.hostname === 'localhost' ? 'localhost:3000' : window.location.host;
-      const socket = new WebSocket(`${protocol}//${host}/ws`);
+      const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+      const host = isLocal ? 'localhost:3000' : window.location.host;
+      const url = `${protocol}//${host}/ws`;
+
+      console.log('Connecting to:', url);
+      const socket = new WebSocket(url);
       ws.current = socket;
 
       socket.onopen = () => {
         socket.send(JSON.stringify({ type: 'REGISTER', name: userName, x: myPos.x, y: myPos.y }));
-        addLog('System online. Searching for peers...', 'success');
+        addLog(`Mesh connected to ${host}`, 'success');
       };
 
       socket.onerror = (error) => {
         console.error('WebSocket Error:', error);
-        addLog('Network connection error. Check if server is running.', 'alert');
+        addLog(`Network error on ${url}`, 'alert');
       };
 
       socket.onclose = (event) => {
