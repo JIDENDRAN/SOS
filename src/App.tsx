@@ -102,11 +102,22 @@ export default function App() {
 
     socket.onmessage = async (event) => {
       try {
-        let textData = typeof event.data === 'string'
-          ? event.data
-          : await (event.data as Blob).text();
+        let textData: string;
+
+        if (typeof event.data === 'string') {
+          textData = event.data;
+        } else if (event.data instanceof Blob) {
+          textData = await event.data.text();
+        } else if (event.data instanceof ArrayBuffer) {
+          textData = new TextDecoder().decode(event.data);
+        } else {
+          console.warn('Unknown message format received:', typeof event.data);
+          return;
+        }
 
         const data = JSON.parse(textData);
+        console.log('WS Receive:', data.type, data);
+
         switch (data.type) {
           case 'REGISTERED':
             setMyId(data.id);

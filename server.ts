@@ -2,6 +2,11 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { WebSocketServer, WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
+import path from "path";
+import { fileURLToPath } from "url";
+import "dotenv/config";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 interface Node {
   id: string;
@@ -28,7 +33,11 @@ async function startServer() {
 
     ws.on("message", (data) => {
       try {
-        const message = JSON.parse(data.toString());
+        // Robust buffer to string conversion
+        const messageStr = data instanceof Buffer
+          ? data.toString('utf8')
+          : data.toString();
+        const message = JSON.parse(messageStr);
 
         switch (message.type) {
           case "REGISTER":
@@ -131,7 +140,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static("dist"));
+    app.use(express.static(path.join(__dirname, "dist")));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(__dirname, "dist", "index.html"));
+    });
   }
 }
 
