@@ -84,7 +84,8 @@ export default function App() {
     let reconnectTimer: NodeJS.Timeout;
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      const host = window.location.hostname === 'localhost' ? 'localhost:3000' : window.location.host;
+      const socket = new WebSocket(`${protocol}//${host}/ws`);
       ws.current = socket;
 
       socket.onopen = () => {
