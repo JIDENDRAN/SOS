@@ -1,0 +1,5 @@
+{
+  "name": "Resilient Emergency Comm System",
+  "description": "Offline-first emergency communication simulation with opportunistic routing (Flooding & PROPHET).",
+  "requestFramePermissions": ["geolocation"]
+}
