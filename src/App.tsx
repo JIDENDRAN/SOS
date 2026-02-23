@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { 
-  Radio, 
-  Wifi, 
-  Map as MapIcon, 
-  Activity, 
-  ShieldAlert, 
-  Settings, 
-  Users, 
+import {
+  Radio,
+  Wifi,
+  Map as MapIcon,
+  Activity,
+  ShieldAlert,
+  Settings,
+  Users,
   Zap,
   ChevronRight,
   History,
@@ -90,18 +90,38 @@ export default function App() {
       addLog('System online. Searching for peers...', 'success');
     };
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      switch (data.type) {
-        case 'REGISTERED':
-          setMyId(data.id);
-          break;
-        case 'NETWORK_STATE':
-          setNodes(data.nodes);
-          break;
-        case 'RECEIVE_SOS':
-          handleIncomingSOS(data.payload, data.fromId);
-          break;
+    socket.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+      addLog('Network connection error. Check if server is running.', 'alert');
+    };
+
+    socket.onclose = (event) => {
+      addLog(`Disconnected from network (Code: ${event.code}).`, 'info');
+      // If closed unexpectedly, could show a retry button or auto-reconnect
+    };
+
+    socket.onmessage = async (event) => {
+      try {
+        let textData = typeof event.data === 'string'
+          ? event.data
+          : await (event.data as Blob).text();
+
+        const data = JSON.parse(textData);
+        switch (data.type) {
+          case 'REGISTERED':
+            setMyId(data.id);
+            addLog(`Node registered with ID: ${data.id.slice(0, 8)}`, 'success');
+            break;
+          case 'NETWORK_STATE':
+            setNodes(data.nodes);
+            addLog(`Mesh updated: ${data.nodes.length} nodes active`, 'info');
+            break;
+          case 'RECEIVE_SOS':
+            handleIncomingSOS(data.payload, data.fromId);
+            break;
+        }
+      } catch (err) {
+        console.error('Failed to parse message:', err);
       }
     };
 
@@ -135,7 +155,7 @@ export default function App() {
 
   const handleIncomingSOS = (msg: SOSMessage, fromId: string) => {
     if (seenMessages.has(msg.messageId)) return;
-    
+
     seenMessages.add(msg.messageId);
     setMessages(prev => [msg, ...prev]);
     setActiveEmergency(msg);
@@ -143,7 +163,7 @@ export default function App() {
 
     // Routing Logic
     if (msg.ttl <= 0) {
-      addLog(`Message ${msg.messageId.slice(0,8)} expired (TTL=0)`, 'info');
+      addLog(`Message ${msg.messageId.slice(0, 8)} expired (TTL=0)`, 'info');
       return;
     }
 
@@ -166,7 +186,7 @@ export default function App() {
   const relayMessage = (msg: SOSMessage) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'SEND_SOS', payload: msg }));
-      addLog(`Relaying message ${msg.messageId.slice(0,8)}...`, 'success');
+      addLog(`Relaying message ${msg.messageId.slice(0, 8)}...`, 'success');
     }
   };
 
@@ -178,14 +198,14 @@ export default function App() {
       timestamp: Date.now(),
       ttl: ttl,
       hopCount: 0,
-      content: isLiveLocation && realCoords 
+      content: isLiveLocation && realCoords
         ? `EMERGENCY: Assistance required at GPS [${realCoords.lat.toFixed(6)}, ${realCoords.lng.toFixed(6)}]`
         : "EMERGENCY: Assistance required at current coordinates.",
       deliveryProbability: 1.0,
       lat: realCoords?.lat,
       lng: realCoords?.lng
     };
-    
+
     seenMessages.add(msg.messageId);
     setMessages(prev => [msg, ...prev]);
     relayMessage(msg);
@@ -261,7 +281,7 @@ export default function App() {
   if (!isRegistered) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#141414] p-6">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md space-y-8 border border-[#2A2A2A] p-8 bg-[#1A1A1A] rounded-2xl shadow-2xl"
@@ -275,15 +295,15 @@ export default function App() {
           <div className="space-y-4">
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-mono text-white/60">Node Identifier</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
                 placeholder="Enter responder name..."
                 className="w-full bg-black border border-[#2A2A2A] p-3 rounded-lg text-sm font-mono focus:border-[#00FF41] outline-none transition-colors"
               />
             </div>
-            <button 
+            <button
               onClick={() => userName && setIsRegistered(true)}
               className="w-full bg-[#00FF41] text-black font-mono font-bold py-3 rounded-lg hover:bg-[#00CC33] transition-colors flex items-center justify-center gap-2"
             >
@@ -319,8 +339,13 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-8">
-            <StatCard icon={<Users size={14}/>} label="PEERS" value={nodes.length.toString()} />
-            <StatCard icon={<Zap size={14}/>} label="HOPS" value={messages.length > 0 ? messages[0].hopCount.toString() : "0"} />
+            <StatCard
+              icon={<Users size={14} />}
+              label="PEERS"
+              value={nodes.length.toString()}
+              subValue={nodes.length === 0 ? "SEARCHING..." : "CONNECTED"}
+            />
+            <StatCard icon={<Zap size={14} />} label="HOPS" value={messages.length > 0 ? messages[0].hopCount.toString() : "0"} />
           </div>
 
           <div className="space-y-6">
@@ -335,8 +360,8 @@ export default function App() {
                     onClick={() => setRoutingMode(mode)}
                     className={cn(
                       "text-left px-4 py-3 rounded border text-[10px] font-mono transition-all min-h-[44px]",
-                      routingMode === mode 
-                        ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" 
+                      routingMode === mode
+                        ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]"
                         : "bg-black/40 border-[#2A2A2A] text-white/40 hover:border-white/20"
                     )}
                   >
@@ -354,8 +379,8 @@ export default function App() {
                 onClick={() => setIsLiveLocation(!isLiveLocation)}
                 className={cn(
                   "w-full px-4 py-3 rounded border text-[10px] font-mono transition-all flex items-center justify-between min-h-[44px]",
-                  isLiveLocation 
-                    ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" 
+                  isLiveLocation
+                    ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]"
                     : "bg-black/40 border-[#2A2A2A] text-white/40 hover:border-white/20"
                 )}
               >
@@ -373,8 +398,8 @@ export default function App() {
               <label className="text-[10px] font-mono text-white/40 uppercase flex items-center gap-2">
                 <Activity size={12} /> Time-To-Live (TTL)
               </label>
-              <input 
-                type="range" min="1" max="20" value={ttl} 
+              <input
+                type="range" min="1" max="20" value={ttl}
                 onChange={(e) => setTtl(parseInt(e.target.value))}
                 className="w-full accent-[#00FF41] h-8"
               />
@@ -400,7 +425,7 @@ export default function App() {
                   {window.location.origin}
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowNativeCode(true)}
                 className="w-full border border-[#00FF41]/30 text-[#00FF41] text-[10px] font-mono py-3 rounded hover:bg-[#00FF41]/10 transition-all min-h-[44px]"
               >
@@ -411,7 +436,7 @@ export default function App() {
         </div>
 
         <div className="hidden md:block p-6 border-t border-[#2A2A2A]">
-          <button 
+          <button
             onClick={triggerSOS}
             className="w-full bg-red-600 hover:bg-red-700 text-white font-mono font-bold py-4 rounded-xl shadow-lg shadow-red-900/20 flex flex-col items-center justify-center gap-1 transition-all active:scale-95"
           >
@@ -467,7 +492,7 @@ export default function App() {
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             <AnimatePresence initial={false}>
               {messages.map((m) => (
-                <motion.div 
+                <motion.div
                   key={m.messageId}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -482,7 +507,7 @@ export default function App() {
                   </div>
                   <div className="text-right shrink-0 ml-2">
                     <div className="text-[10px] font-mono text-white/40">H:{m.hopCount}</div>
-                    <div className="text-[8px] font-mono text-white/20">{new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                    <div className="text-[8px] font-mono text-white/20">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                 </motion.div>
               ))}
@@ -518,8 +543,8 @@ export default function App() {
               <div key={i} className="flex gap-2">
                 <span className="text-white/20">[{log.time}]</span>
                 <span className={cn(
-                  log.type === 'alert' ? 'text-red-400' : 
-                  log.type === 'success' ? 'text-[#00FF41]' : 'text-white/60'
+                  log.type === 'alert' ? 'text-red-400' :
+                    log.type === 'success' ? 'text-[#00FF41]' : 'text-white/60'
                 )}>
                   {log.msg}
                 </span>
@@ -538,28 +563,28 @@ export default function App() {
 
       {/* --- Mobile Bottom Navigation --- */}
       <nav className="md:hidden h-16 bg-[#1A1A1A] border-t border-[#2A2A2A] grid grid-cols-4 items-center">
-        <button 
+        <button
           onClick={() => setActiveTab('map')}
           className={cn("flex flex-col items-center gap-1", activeTab === 'map' ? "text-[#00FF41]" : "text-white/40")}
         >
           <MapIcon size={20} />
           <span className="text-[9px] font-mono uppercase">Map</span>
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('messages')}
           className={cn("flex flex-col items-center gap-1", activeTab === 'messages' ? "text-[#00FF41]" : "text-white/40")}
         >
           <History size={20} />
           <span className="text-[9px] font-mono uppercase">Alerts</span>
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('system')}
           className={cn("flex flex-col items-center gap-1", activeTab === 'system' ? "text-[#00FF41]" : "text-white/40")}
         >
           <Settings size={20} />
           <span className="text-[9px] font-mono uppercase">System</span>
         </button>
-        <button 
+        <button
           onClick={triggerSOS}
           className="flex flex-col items-center gap-1 text-red-500 animate-pulse"
         >
@@ -571,13 +596,13 @@ export default function App() {
       {/* --- Native Code Modal --- */}
       <AnimatePresence>
         {showNativeCode && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               className="w-full max-w-2xl bg-[#1A1A1A] border border-[#2A2A2A] p-6 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
@@ -588,10 +613,10 @@ export default function App() {
                   <Info size={20} />
                 </button>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto bg-black p-4 rounded-lg border border-[#2A2A2A]">
                 <pre className="text-[10px] font-mono text-white/80 leading-relaxed whitespace-pre-wrap">
-{`// 1. Add these to your Android Studio project (Kotlin)
+                  {`// 1. Add these to your Android Studio project (Kotlin)
 // 2. Use Bluetooth/WiFi-Direct APIs for real offline P2P
 
 data class SOSMessage(
@@ -628,13 +653,13 @@ class RoutingEngine {
 }`}
                 </pre>
               </div>
-              
+
               <div className="mt-6 space-y-4">
                 <p className="text-[10px] font-mono text-white/40 leading-relaxed">
-                  To create a downloadable APK, copy this logic into a new Android Studio project. 
+                  To create a downloadable APK, copy this logic into a new Android Studio project.
                   For a quick "app-like" experience, use the <strong>PWA (Add to Home Screen)</strong> option instead.
                 </p>
-                <button 
+                <button
                   onClick={() => setShowNativeCode(false)}
                   className="w-full bg-[#00FF41] text-black font-mono font-bold py-3 rounded-lg"
                 >
@@ -649,19 +674,19 @@ class RoutingEngine {
       {/* --- Emergency Alert Modal --- */}
       <AnimatePresence>
         {activeEmergency && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-red-950/90 backdrop-blur-xl"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               className="w-full max-w-lg bg-black border-4 border-red-600 p-8 rounded-3xl shadow-[0_0_100px_rgba(220,38,38,0.5)] text-center space-y-6"
             >
               <div className="relative">
-                <motion.div 
+                <motion.div
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ repeat: Infinity, duration: 1 }}
                   className="w-24 h-24 bg-red-600 rounded-full mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.8)]"
@@ -688,10 +713,10 @@ class RoutingEngine {
 
               <div className="flex justify-between text-[10px] font-mono text-white/40 uppercase tracking-widest">
                 <span>HOP COUNT: {activeEmergency.hopCount}</span>
-                <span>ID: {activeEmergency.messageId.slice(0,8)}</span>
+                <span>ID: {activeEmergency.messageId.slice(0, 8)}</span>
               </div>
 
-              <button 
+              <button
                 onClick={() => setActiveEmergency(null)}
                 className="w-full bg-white text-black font-mono font-bold py-4 rounded-xl hover:bg-red-100 transition-colors"
               >
@@ -705,13 +730,14 @@ class RoutingEngine {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string, value: string }) {
+function StatCard({ icon, label, value, subValue }: { icon: React.ReactNode, label: string, value: string, subValue?: string }) {
   return (
     <div className="bg-black/40 border border-[#2A2A2A] p-3 rounded-xl space-y-1">
       <div className="flex items-center gap-2 text-[10px] font-mono text-white/30 uppercase">
         {icon} {label}
       </div>
       <div className="text-xl font-mono text-[#E4E3E0]">{value}</div>
+      {subValue && <div className="text-[8px] font-mono text-[#00FF41]/60 uppercase">{subValue}</div>}
     </div>
   );
 }
@@ -724,7 +750,7 @@ function MetricBar({ label, value, color }: { label: string, value: number, colo
         <span style={{ color }}>{value}%</span>
       </div>
       <div className="h-1 bg-black rounded-full overflow-hidden">
-        <motion.div 
+        <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${value}%` }}
           className="h-full"

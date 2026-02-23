@@ -15,9 +15,9 @@ interface Node {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  const PORT = process.env.PORT || 3000;
+  const server = app.listen(Number(PORT), "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
 
   const wss = new WebSocketServer({ server });
@@ -25,13 +25,14 @@ async function startServer() {
 
   wss.on("connection", (ws) => {
     const nodeId = uuidv4();
-    
+
     ws.on("message", (data) => {
       try {
         const message = JSON.parse(data.toString());
-        
+
         switch (message.type) {
           case "REGISTER":
+            console.log(`Node REGISTER: ${message.name} (${nodeId})`);
             nodes.set(nodeId, {
               id: nodeId,
               name: message.name,
@@ -110,9 +111,15 @@ async function startServer() {
       y: n.y,
       probs: n.deliveryProbabilities
     }));
-    
-    nodes.forEach(node => {
-      node.ws.send(JSON.stringify({ type: "NETWORK_STATE", nodes: state }));
+
+    nodes.forEach((node, id) => {
+      try {
+        if (node.ws.readyState === WebSocket.OPEN) {
+          node.ws.send(JSON.stringify({ type: "NETWORK_STATE", nodes: state }));
+        }
+      } catch (err) {
+        console.error(`Failed to send to node ${id}:`, err);
+      }
     });
   }
 
