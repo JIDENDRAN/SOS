@@ -25,7 +25,7 @@ async function startServer() {
     console.log(`Server running on port ${PORT}`);
   });
 
-  const wss = new WebSocketServer({ server });
+  const wss = new WebSocketServer({ server, path: "/ws" });
   const nodes = new Map<string, Node>();
 
   wss.on("connection", (ws) => {
