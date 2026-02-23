@@ -84,8 +84,10 @@ export default function App() {
     let reconnectTimer: NodeJS.Timeout;
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
-      const host = isLocal ? 'localhost:3000' : window.location.host;
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      // In production, we use the window.location.host which includes the domain (+ port if any)
+      // In local development with Vite (port 5173), we need to manually target port 3000
+      const host = (isLocal && window.location.port !== '3000') ? 'localhost:3000' : window.location.host;
       const url = `${protocol}//${host}/ws`;
 
       console.log('Connecting to:', url);

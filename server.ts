@@ -143,8 +143,10 @@ async function startServer() {
     });
   }, 25000);
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Environment-specific setup
+  const isProduction = process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
