@@ -360,11 +360,11 @@ export default function App() {
     <div className="min-h-screen flex flex-col md:grid md:grid-cols-12 bg-[#141414] overflow-hidden">
       {/* --- Sidebar: Stats & Controls (Desktop) / System Tab (Mobile) --- */}
       <aside className={cn(
-        "md:col-span-3 border-r border-[#2A2A2A] flex flex-col bg-[#1A1A1A] transition-all",
-        activeTab === 'system' ? 'flex flex-1' : 'hidden md:flex'
+        "md:col-span-3 border-r border-[#2A2A2A] flex flex-col bg-[#1A1A1A] transition-all overflow-hidden",
+        activeTab === 'system' ? 'fixed inset-0 z-50 md:relative md:inset-auto flex pb-16' : 'hidden md:flex'
       )}>
-        <div className="p-6 border-bottom border-[#2A2A2A] flex-1 overflow-y-auto">
-          <div className="flex items-center gap-3 mb-6">
+        <div className="p-4 md:p-6 border-b border-[#2A2A2A] flex justify-between items-center md:block">
+          <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#00FF41]/10 flex items-center justify-center">
               <Radio className="text-[#00FF41]" size={20} />
             </div>
@@ -373,8 +373,17 @@ export default function App() {
               <p className="text-[10px] font-mono text-[#00FF41]">NODE ACTIVE</p>
             </div>
           </div>
+          {/* Mobile Close Button for System Tab */}
+          <button
+            onClick={() => setActiveTab('map')}
+            className="md:hidden p-2 text-white/40 hover:text-white"
+          >
+            <ChevronRight size={24} className="rotate-90" />
+          </button>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
             <StatCard
               icon={<Users size={14} />}
               label="PEERS"
@@ -384,18 +393,29 @@ export default function App() {
             <StatCard icon={<Zap size={14} />} label="HOPS" value={messages.length > 0 ? messages[0].hopCount.toString() : "0"} />
           </div>
 
+          {/* Analytics (Moved here for mobile) */}
+          <div className="md:hidden space-y-4 pt-4 border-t border-[#2A2A2A]">
+            <h3 className="text-[10px] font-mono text-white/40 uppercase flex items-center gap-2">
+              <Activity size={14} /> Mesh Analytics
+            </h3>
+            <div className="grid grid-cols-1 gap-4">
+              <MetricBar label="Delivery Prob" value={84} color="#00FF41" />
+              <MetricBar label="Efficiency" value={92} color="#00FF41" />
+            </div>
+          </div>
+
           <div className="space-y-6">
             <div className="space-y-3">
               <label className="text-[10px] font-mono text-white/40 uppercase flex items-center gap-2">
                 <Settings size={12} /> Routing Protocol
               </label>
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {Object.values(RoutingMode).map(mode => (
                   <button
                     key={mode}
                     onClick={() => setRoutingMode(mode)}
                     className={cn(
-                      "text-left px-4 py-3 rounded border text-[10px] font-mono transition-all min-h-[44px]",
+                      "text-left px-4 py-3 rounded border text-[10px] font-mono transition-all min-h-[48px]",
                       routingMode === mode
                         ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]"
                         : "bg-black/40 border-[#2A2A2A] text-white/40 hover:border-white/20"
@@ -403,6 +423,26 @@ export default function App() {
                   >
                     {mode}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {/* System Logs (Moved here for mobile) */}
+            <div className="md:hidden space-y-4 pt-4 border-t border-[#2A2A2A]">
+              <label className="text-[10px] font-mono text-white/40 uppercase flex items-center gap-2">
+                <Info size={12} /> System Logs
+              </label>
+              <div className="bg-black/40 rounded-lg p-3 border border-[#2A2A2A] max-h-48 overflow-y-auto font-mono text-[9px] space-y-2">
+                {logs.map((log, i) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="text-white/20 shrink-0">[{log.time}]</span>
+                    <span className={cn(
+                      log.type === 'alert' ? 'text-red-400' :
+                        log.type === 'success' ? 'text-[#00FF41]' : 'text-white/60'
+                    )}>
+                      {log.msg}
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -484,8 +524,8 @@ export default function App() {
 
       {/* --- Main Content Area --- */}
       <main className={cn(
-        "md:col-span-6 relative bg-black data-grid flex flex-col transition-all",
-        activeTab === 'map' ? 'flex flex-1' : (activeTab === 'messages' ? 'flex flex-1' : 'hidden md:flex')
+        "md:col-span-6 relative bg-black data-grid flex flex-col transition-all overflow-hidden",
+        activeTab === 'map' ? 'flex flex-1 pb-16 md:pb-0' : (activeTab === 'messages' ? 'flex flex-1 pb-16 md:pb-0' : 'hidden md:flex')
       )}>
         {/* Map View */}
         <div className={cn(
@@ -514,8 +554,8 @@ export default function App() {
 
         {/* Message Feed (Buffer) */}
         <div className={cn(
-          "border-t border-[#2A2A2A] bg-[#1A1A1A] flex flex-col transition-all",
-          activeTab === 'messages' ? 'flex-1' : 'h-48 md:h-64 hidden md:flex'
+          "border-t border-[#2A2A2A] bg-[#1A1A1A] flex flex-col transition-all shrink-0",
+          activeTab === 'messages' ? 'absolute inset-0 z-40 pb-16 flex' : 'h-48 md:h-64 hidden md:flex'
         )}>
           <div className="p-3 border-b border-[#2A2A2A] flex items-center justify-between">
             <div className="flex items-center gap-2 text-[10px] font-mono text-white/40 uppercase">
@@ -598,34 +638,36 @@ export default function App() {
       </aside>
 
       {/* --- Mobile Bottom Navigation --- */}
-      <nav className="md:hidden h-16 bg-[#1A1A1A] border-t border-[#2A2A2A] grid grid-cols-4 items-center">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#1A1A1A]/95 backdrop-blur-md border-t border-[#2A2A2A] grid grid-cols-4 items-center z-[60]">
         <button
           onClick={() => setActiveTab('map')}
-          className={cn("flex flex-col items-center gap-1", activeTab === 'map' ? "text-[#00FF41]" : "text-white/40")}
+          className={cn("flex flex-col items-center gap-1 transition-colors", activeTab === 'map' ? "text-[#00FF41]" : "text-white/40")}
         >
           <MapIcon size={20} />
           <span className="text-[9px] font-mono uppercase">Map</span>
         </button>
         <button
           onClick={() => setActiveTab('messages')}
-          className={cn("flex flex-col items-center gap-1", activeTab === 'messages' ? "text-[#00FF41]" : "text-white/40")}
+          className={cn("flex flex-col items-center gap-1 transition-colors", activeTab === 'messages' ? "text-[#00FF41]" : "text-white/40")}
         >
           <History size={20} />
           <span className="text-[9px] font-mono uppercase">Alerts</span>
         </button>
         <button
           onClick={() => setActiveTab('system')}
-          className={cn("flex flex-col items-center gap-1", activeTab === 'system' ? "text-[#00FF41]" : "text-white/40")}
+          className={cn("flex flex-col items-center gap-1 transition-colors", activeTab === 'system' ? "text-[#00FF41]" : "text-white/40")}
         >
           <Settings size={20} />
           <span className="text-[9px] font-mono uppercase">System</span>
         </button>
         <button
           onClick={triggerSOS}
-          className="flex flex-col items-center gap-1 text-red-500 animate-pulse"
+          className="flex flex-col items-center gap-1 text-red-500 active:scale-90 transition-transform"
         >
-          <ShieldAlert size={24} />
-          <span className="text-[9px] font-mono uppercase font-bold">SOS</span>
+          <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center border border-red-600/40">
+            <ShieldAlert size={22} className="animate-pulse" />
+          </div>
+          <span className="text-[8px] font-mono uppercase font-bold">SOS</span>
         </button>
       </nav>
 
