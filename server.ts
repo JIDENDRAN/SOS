@@ -132,6 +132,17 @@ async function startServer() {
     });
   }
 
+  // Heartbeat to keep connection alive on deployment platforms (e.g. Render/Railway)
+  setInterval(() => {
+    nodes.forEach((node, id) => {
+      if (node.ws.readyState === WebSocket.OPEN) {
+        node.ws.send(JSON.stringify({ type: "PING" }));
+      } else if (node.ws.readyState === WebSocket.CLOSED || node.ws.readyState === WebSocket.CLOSING) {
+        nodes.delete(id);
+      }
+    });
+  }, 25000);
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -140,9 +151,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    const distPath = path.join(__dirname, "dist");
+    app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 }

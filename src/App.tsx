@@ -81,62 +81,80 @@ export default function App() {
   useEffect(() => {
     if (!isRegistered) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}`);
-    ws.current = socket;
+    let reconnectTimer: NodeJS.Timeout;
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const socket = new WebSocket(`${protocol}//${window.location.host}`);
+      ws.current = socket;
 
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ type: 'REGISTER', name: userName, x: myPos.x, y: myPos.y }));
-      addLog('System online. Searching for peers...', 'success');
-    };
+      socket.onopen = () => {
+        socket.send(JSON.stringify({ type: 'REGISTER', name: userName, x: myPos.x, y: myPos.y }));
+        addLog('System online. Searching for peers...', 'success');
+      };
 
-    socket.onerror = (error) => {
-      console.error('WebSocket Error:', error);
-      addLog('Network connection error. Check if server is running.', 'alert');
-    };
+      socket.onerror = (error) => {
+        console.error('WebSocket Error:', error);
+        addLog('Network connection error. Check if server is running.', 'alert');
+      };
 
-    socket.onclose = (event) => {
-      addLog(`Disconnected from network (Code: ${event.code}).`, 'info');
-      // If closed unexpectedly, could show a retry button or auto-reconnect
-    };
-
-    socket.onmessage = async (event) => {
-      try {
-        let textData: string;
-
-        if (typeof event.data === 'string') {
-          textData = event.data;
-        } else if (event.data instanceof Blob) {
-          textData = await event.data.text();
-        } else if (event.data instanceof ArrayBuffer) {
-          textData = new TextDecoder().decode(event.data);
-        } else {
-          console.warn('Unknown message format received:', typeof event.data);
-          return;
+      socket.onclose = (event) => {
+        addLog(`Disconnected from network (Code: ${event.code}).`, 'info');
+        if (event.code !== 1000) {
+          addLog('Attempting to reconnect in 3s...', 'info');
+          reconnectTimer = setTimeout(connect, 3000);
         }
+      };
 
-        const data = JSON.parse(textData);
-        console.log('WS Receive:', data.type, data);
+      socket.onmessage = async (event) => {
+        try {
+          let textData: string;
 
-        switch (data.type) {
-          case 'REGISTERED':
-            setMyId(data.id);
-            addLog(`Node registered with ID: ${data.id.slice(0, 8)}`, 'success');
-            break;
-          case 'NETWORK_STATE':
-            setNodes(data.nodes);
-            addLog(`Mesh updated: ${data.nodes.length} nodes active`, 'info');
-            break;
-          case 'RECEIVE_SOS':
-            handleIncomingSOS(data.payload, data.fromId);
-            break;
+          if (typeof event.data === 'string') {
+            textData = event.data;
+          } else if (event.data instanceof Blob) {
+            textData = await event.data.text();
+          } else if (event.data instanceof ArrayBuffer) {
+            textData = new TextDecoder().decode(event.data);
+          } else {
+            console.warn('Unknown message format received:', typeof event.data);
+            return;
+          }
+
+          const data = JSON.parse(textData);
+
+          // Handle Heartbeat
+          if (data.type === 'PING') {
+            console.log('Keep-alive ping received');
+            return;
+          }
+
+          console.log('WS Receive:', data.type, data);
+
+          switch (data.type) {
+            case 'REGISTERED':
+              setMyId(data.id);
+              addLog(`Node registered with ID: ${data.id.slice(0, 8)}`, 'success');
+              break;
+            case 'NETWORK_STATE':
+              setNodes(data.nodes);
+              addLog(`Mesh updated: ${data.nodes.length} nodes active`, 'info');
+              break;
+            case 'RECEIVE_SOS':
+              handleIncomingSOS(data.payload, data.fromId);
+              break;
+          }
+        } catch (err) {
+          console.error('Failed to parse message:', err);
         }
-      } catch (err) {
-        console.error('Failed to parse message:', err);
-      }
+      };
     };
 
-    return () => socket.close();
+    connect();
+
+    return () => {
+      if (ws.current) ws.current.close(1000);
+      clearTimeout(reconnectTimer);
+    };
   }, [isRegistered]);
 
   useEffect(() => {
