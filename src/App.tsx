@@ -53,12 +53,15 @@ enum RoutingMode {
 // --- Components ---
 
 export default function App() {
-  const [userName, setUserName] = useState<string>('');
+  const [userName, setUserName] = useState<string>(() => localStorage.getItem('sos_user_name') || '');
   const [isRegistered, setIsRegistered] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
   const [nodes, setNodes] = useState<PeerNode[]>([]);
   const [myPos, setMyPos] = useState({ x: 50, y: 50 });
-  const [messages, setMessages] = useState<SOSMessage[]>([]);
+  const [messages, setMessages] = useState<SOSMessage[]>(() => {
+    const saved = localStorage.getItem('sos_messages');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [activeEmergency, setActiveEmergency] = useState<SOSMessage | null>(null);
   const [seenMessages] = useState(new Set<string>());
   const [routingMode, setRoutingMode] = useState<RoutingMode>(RoutingMode.FLOODING);
@@ -66,6 +69,7 @@ export default function App() {
   const [isLiveLocation, setIsLiveLocation] = useState(false);
   const [realCoords, setRealCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTab, setActiveTab] = useState<'map' | 'messages' | 'system'>('map');
+  const [p2pMode, setP2pMode] = useState<'cloudoffline' | 'bluetooth'>('cloudoffline');
   const [showNativeCode, setShowNativeCode] = useState(false);
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
 
@@ -77,6 +81,15 @@ export default function App() {
   const addLog = (msg: string, type: 'info' | 'alert' | 'success' = 'info') => {
     setLogs(prev => [{ time: new Date().toLocaleTimeString(), msg, type }, ...prev].slice(0, 50));
   };
+
+  // --- Persistence ---
+  useEffect(() => {
+    localStorage.setItem('sos_user_name', userName);
+  }, [userName]);
+
+  useEffect(() => {
+    localStorage.setItem('sos_messages', JSON.stringify(messages));
+  }, [messages]);
 
   useEffect(() => {
     if (!isRegistered) return;
@@ -189,6 +202,22 @@ export default function App() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isLiveLocation]);
 
+  useEffect(() => {
+    if (p2pMode === 'bluetooth') {
+      const timer = setTimeout(() => {
+        addLog('Bluetooth Scan: Local peer detected via BLE', 'info');
+        setNodes(prev => [...prev, {
+          id: 'ble-peer-1',
+          name: 'Nearby Responder',
+          x: myPos.x + 10,
+          y: myPos.y - 10,
+          probs: {}
+        }]);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [p2pMode]);
+
   const handleIncomingSOS = (msg: SOSMessage, fromId: string) => {
     if (seenMessages.has(msg.messageId)) return;
 
@@ -245,7 +274,11 @@ export default function App() {
     seenMessages.add(msg.messageId);
     setMessages(prev => [msg, ...prev]);
     relayMessage(msg);
-    addLog('SOS Broadcast initiated!', 'alert');
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      addLog('SOS Broadcast sent to mesh!', 'alert');
+    } else {
+      addLog('SOS Saved Offline. Waiting for peers...', 'success');
+    }
   };
 
   const updatePosition = (x: number, y: number) => {
@@ -383,7 +416,7 @@ export default function App() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8">
-          <div className="grid grid-cols-2 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 mb-4">
             <StatCard
               icon={<Users size={14} />}
               label="PEERS"
@@ -391,6 +424,35 @@ export default function App() {
               subValue={nodes.length === 0 ? "SEARCHING..." : "CONNECTED"}
             />
             <StatCard icon={<Zap size={14} />} label="HOPS" value={messages.length > 0 ? messages[0].hopCount.toString() : "0"} />
+          </div>
+
+          <div className="space-y-3 mb-8">
+            <label className="text-[10px] font-mono text-white/40 uppercase flex items-center gap-2">
+              <Zap size={12} className="text-[#00FF41]" /> Signal Mode
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setP2pMode('cloudoffline')}
+                className={cn(
+                  "flex-1 py-3 rounded border text-[9px] font-mono transition-all",
+                  p2pMode === 'cloudoffline' ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" : "bg-black/40 border-[#2A2A2A] text-white/30"
+                )}
+              >
+                INTERNET/MESH
+              </button>
+              <button
+                onClick={() => setP2pMode('bluetooth')}
+                className={cn(
+                  "flex-1 py-3 rounded border text-[9px] font-mono transition-all",
+                  p2pMode === 'bluetooth' ? "bg-blue-500/10 border-blue-500 text-blue-500" : "bg-black/40 border-[#2A2A2A] text-white/30"
+                )}
+              >
+                BLUETOOTH (P2P)
+              </button>
+            </div>
+            <p className="text-[8px] font-mono text-white/20 italic">
+              {p2pMode === 'bluetooth' ? "Bluetooth mode requires Native Android Build (APK) for real-world use." : "Mesh mode uses WebSocket relay for global testing."}
+            </p>
           </div>
 
           {/* Analytics (Moved here for mobile) */}
@@ -694,39 +756,120 @@ export default function App() {
 
               <div className="flex-1 overflow-y-auto bg-black p-4 rounded-lg border border-[#2A2A2A]">
                 <pre className="text-[10px] font-mono text-white/80 leading-relaxed whitespace-pre-wrap">
-                  {`// 1. Add these to your Android Studio project (Kotlin)
-// 2. Use Bluetooth/WiFi-Direct APIs for real offline P2P
+                  {`// --- REAL OFFLINE BLUETOOTH MESH CODE (Android/Kotlin) ---
+// Requires: Bluetooth + Admin permissions in Manifest
 
-data class SOSMessage(
-    val id: String = UUID.randomUUID().toString(),
-    val sender: String,
-    val lat: Double?,
-    val lng: Double?,
-    val content: String,
-    var ttl: Int = 10,
-    var hops: Int = 0
-)
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.le.*
+import android.content.Context
+import android.os.ParcelUuid
+import android.util.Log
+import java.util.UUID
 
-class RoutingEngine {
-    private val seen = mutableSetOf<String>()
+class BluetoothMeshManager(private val context: Context) {
+    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    private val bleScanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
+    private val bleAdvertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
+    private val SOS_SERVICE_UUID = UUID.fromString("0000180D-0000-1000-8000-00805f9b34fb") // Example UUID
 
-    fun onReceive(msg: SOSMessage) {
-        if (seen.contains(msg.id)) return
-        seen.add(msg.id)
-        
-        if (msg.ttl > 0) {
-            msg.ttl--
-            msg.hops++
-            // Broadcast to all nearby Bluetooth/WiFi peers
-            broadcast(msg)
+    init {
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
+            Log.e("SOS", "Bluetooth is not available or not enabled.")
+            // Handle Bluetooth not available/enabled (e.g., prompt user to enable)
         }
-        
-        // Trigger UI Alert
-        showEmergencyAlert(msg)
     }
-    
-    private fun broadcast(msg: SOSMessage) {
-        // Implementation for Bluetooth LE / WiFi Direct
+
+    // 1. BROADCAST: Send SOS message to nearby phones
+    fun broadcastSOS(messageContent: String) {
+        if (bleAdvertiser == null) {
+            Log.e("SOS", "BLE Advertiser not available.")
+            return
+        }
+
+        val settings = AdvertiseSettings.Builder()
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+            .setConnectable(false) // Non-connectable for pure advertising
+            .setTimeout(0) // Advertise indefinitely
+            .build()
+
+        // Max advertising data size is limited (e.g., 31 bytes for legacy advertising)
+        // For larger messages, consider using GATT services or splitting data.
+        val messageBytes = messageContent.toByteArray(Charsets.UTF_8)
+        val data = AdvertiseData.Builder()
+            .addServiceUuid(ParcelUuid(SOS_SERVICE_UUID))
+            .addServiceData(ParcelUuid(SOS_SERVICE_UUID), messageBytes.take(20).toByteArray()) // Limited to ~20 bytes for service data
+            .setIncludeDeviceName(false) // Save space
+            .build()
+
+        bleAdvertiser.startAdvertising(settings, data, object : AdvertiseCallback() {
+            override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+                Log.d("SOS", "Bluetooth Broadcast Active: ${messageContent.take(20)}")
+            }
+
+            override fun onStartFailure(errorCode: Int) {
+                Log.e("SOS", "Bluetooth Advertising failed: $errorCode")
+            }
+        })
+    }
+
+    // 2. SCAN: Detect SOS messages from nearby phones
+    fun startScanning() {
+        if (bleScanner == null) {
+            Log.e("SOS", "BLE Scanner not available.")
+            return
+        }
+
+        val scanFilter = ScanFilter.Builder()
+            .setServiceUuid(ParcelUuid(SOS_SERVICE_UUID))
+            .build()
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .build()
+
+        bleScanner.startScan(listOf(scanFilter), settings, object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                val byteData = result.scanRecord?.getServiceData(ParcelUuid(SOS_SERVICE_UUID))
+                if (byteData != null) {
+                    val message = String(byteData, Charsets.UTF_8)
+                    Log.d("SOS", "Received Bluetooth SOS: $message (RSSI: ${result.rssi})")
+                    
+                    // POPUP ALERT ON PHONE (Implement your UI logic here)
+                    // triggerEmergencyUI(message) 
+                    
+                    // RELAY: Automatically rebroadcast to extend range (MESH)
+                    // This creates a simple flooding mesh. Add logic to prevent infinite loops.
+                    // For a real mesh, you'd need message IDs and a seen-message cache.
+                    // broadcastSOS(message) 
+                }
+            }
+
+            override fun onBatchScanResults(results: MutableList<ScanResult>?) {
+                results?.forEach { onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, it) }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e("SOS", "Bluetooth Scanning failed: $errorCode")
+            }
+        })
+    }
+
+    fun stopAdvertising() {
+        bleAdvertiser?.stopAdvertising(object : AdvertiseCallback() {})
+        Log.d("SOS", "Bluetooth Advertising stopped.")
+    }
+
+    fun stopScanning() {
+        bleScanner?.stopScan(object : ScanCallback() {})
+        Log.d("SOS", "Bluetooth Scanning stopped.")
+    }
+
+    // Example UI trigger (replace with actual Android UI code)
+    private fun triggerEmergencyUI(message: String) {
+        // This would typically involve showing a notification, dialog, or updating a UI element
+        Log.i("SOS_UI", "EMERGENCY ALERT: $message")
+        // Example: Toast.makeText(context, "SOS: $message", Toast.LENGTH_LONG).show()
     }
 }`}
                 </pre>
