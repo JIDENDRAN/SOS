@@ -359,95 +359,137 @@ class BluetoothMeshManager(private val context: Context) {
     const height = mapRef.current.clientHeight;
 
     // Tactical Glow Grid dots
-    const dotSpacing = 30;
+    const dotSpacing = 40;
+    const dotsG = svg.append("g").attr("class", "grid-dots");
     for (let x = 0; x <= width; x += dotSpacing) {
       for (let y = 0; y <= height; y += dotSpacing) {
-        svg.append("circle")
+        dotsG.append("circle")
           .attr("cx", x)
           .attr("cy", y)
-          .attr("r", 0.5)
-          .attr("fill", "#00FF41")
-          .attr("opacity", 0.15);
+          .attr("r", 0.8)
+          .attr("fill", "#00ff41")
+          .attr("opacity", 0.08);
       }
     }
 
-    // Scanning Radar Sweep
-    const sweep = svg.append("line")
+    // Scanning Radar Sweep - Multi-layered
+    const radarG = svg.append("g").attr("class", "radar-system");
+
+    // Outer Rings
+    for (let r = 1; r <= 3; r++) {
+      radarG.append("circle")
+        .attr("cx", width / 2)
+        .attr("cy", height / 2)
+        .attr("r", (width / 6) * r)
+        .attr("fill", "none")
+        .attr("stroke", "#00ff41")
+        .attr("stroke-width", 0.5)
+        .attr("opacity", 0.05)
+        .attr("stroke-dasharray", "4,4");
+    }
+
+    const sweepG = radarG.append("g")
+      .attr("class", "radar-sweep")
+      .style("transform-origin", `${width / 2}px ${height / 2}px`);
+
+    sweepG.append("line")
       .attr("x1", width / 2)
       .attr("y1", height / 2)
       .attr("x2", width)
       .attr("y2", height / 2)
-      .attr("stroke", "rgba(0, 255, 65, 0.4)")
-      .attr("stroke-width", 1.5)
-      .attr("class", "radar-sweep");
+      .attr("stroke", "url(#radar-gradient)")
+      .attr("stroke-width", 2);
 
-    // Radar Center
-    svg.append("circle")
-      .attr("cx", width / 2)
-      .attr("cy", height / 2)
-      .attr("r", 2)
-      .attr("fill", "#00FF41");
+    // Gradient for sweep
+    const defs = svg.append("defs");
+    const grad = defs.append("linearGradient")
+      .attr("id", "radar-gradient")
+      .attr("x1", "0%").attr("y1", "0%")
+      .attr("x2", "100%").attr("y2", "0%");
+    grad.append("stop").attr("offset", "0%").attr("stop-color", "rgba(0, 255, 65, 0)");
+    grad.append("stop").attr("offset", "100%").attr("stop-color", "rgba(0, 255, 65, 0.4)");
 
     nodes.forEach(node => {
       const isMe = node.id === myId;
       const x = (node.x / 100) * width;
       const y = (node.y / 100) * height;
+      const nodeColor = isMe ? "#10b981" : (p2pMode === 'bluetooth' ? "#3B82F6" : "#10b981");
+
       const g = svg.append("g").attr("transform", `translate(${x}, ${y})`);
 
       if (isMe) {
-        // Range Indicator
+        // Range Indicator Glow
         svg.append("circle")
           .attr("cx", x)
           .attr("cy", y)
           .attr("r", (30 / 100) * width)
-          .attr("fill", p2pMode === 'bluetooth' ? "rgba(59, 130, 246, 0.03)" : "rgba(0, 255, 65, 0.03)")
-          .attr("stroke", p2pMode === 'bluetooth' ? "rgba(59, 130, 246, 0.2)" : "rgba(0, 255, 65, 0.2)")
-          .attr("stroke-dasharray", "2,2")
+          .attr("fill", `${nodeColor}08`)
+          .attr("stroke", `${nodeColor}22`)
+          .attr("stroke-dasharray", "4,4")
+          .attr("class", "animate-pulse")
           .lower();
       }
 
-      // Glowing Node
-      const nodeColor = isMe ? "#00FF41" : (p2pMode === 'bluetooth' ? "#3B82F6" : "#00FF41");
+      // Node Marker - Crosshair Style
+      const size = isMe ? 8 : 6;
+      g.append("circle")
+        .attr("r", size)
+        .attr("fill", nodeColor)
+        .attr("filter", "blur(4px)")
+        .attr("opacity", 0.4);
 
       g.append("circle")
-        .attr("r", isMe ? 6 : 4)
-        .attr("fill", nodeColor)
-        .attr("class", isMe ? "shadow-[0_0_10px_#00FF41]" : "");
+        .attr("r", size / 2)
+        .attr("fill", nodeColor);
 
       if (isMe) {
         g.append("circle")
-          .attr("r", 12)
+          .attr("r", size * 3)
           .attr("fill", "none")
           .attr("stroke", nodeColor)
-          .attr("opacity", 0.5)
+          .attr("stroke-width", 1)
+          .attr("opacity", 0.3)
           .attr("class", "animate-ping");
       }
 
-      // Name Tag
-      const labelContainer = g.append("g").attr("transform", "translate(0, 15)");
+      // Name & ID Label
+      const label = g.append("g").attr("transform", `translate(0, ${size + 12})`);
 
-      labelContainer.append("text")
+      // Label Background
+      label.append("rect")
+        .attr("x", -30)
+        .attr("y", -8)
+        .attr("width", 60)
+        .attr("height", 14)
+        .attr("fill", "rgba(10, 10, 11, 0.8)")
+        .attr("rx", 4);
+
+      label.append("text")
         .text(node.name.toUpperCase())
         .attr("text-anchor", "middle")
-        .attr("fill", "#E4E3E0")
-        .attr("font-size", "8px")
+        .attr("fill", "white")
+        .attr("font-size", "7px")
         .attr("font-family", "JetBrains Mono")
-        .attr("font-weight", "bold");
+        .attr("font-weight", "bold")
+        .attr("dy", 2);
 
       if (isMe) {
-        labelContainer.append("text")
-          .text("YOU")
+        label.append("text")
+          .text("AUTHORIZED UNIT")
           .attr("dy", 10)
           .attr("text-anchor", "middle")
-          .attr("fill", "#00FF41")
-          .attr("font-size", "7px")
-          .attr("font-family", "JetBrains Mono");
+          .attr("fill", nodeColor)
+          .attr("font-size", "5px")
+          .attr("font-family", "JetBrains Mono")
+          .attr("letter-spacing", "1px");
       }
     });
 
-    // Add tactical corner brackets
-    const pad = 10;
+    // Add HUD corner accents to the SVG itself
+    const pad = 20;
     const len = 15;
+    const HUD = svg.append("g").attr("class", "hud-accents").attr("opacity", 0.2);
+
     const corners = [
       `M ${pad},${pad + len} V ${pad} H ${pad + len}`,
       `M ${width - pad},${pad + len} V ${pad} H ${width - pad - len}`,
@@ -456,210 +498,431 @@ class BluetoothMeshManager(private val context: Context) {
     ];
 
     corners.forEach(d => {
-      svg.append("path")
+      HUD.append("path")
         .attr("d", d)
         .attr("fill", "none")
-        .attr("stroke", "#2A2A2A")
+        .attr("stroke", "#fff")
         .attr("stroke-width", 1);
     });
 
   }, [nodes, myId, p2pMode]);
 
+
   if (!isRegistered) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#141414] p-6 relative overflow-hidden">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0b] p-6 relative overflow-hidden">
         <div className="scanline" />
-        <div className="absolute inset-0 opacity-10 data-grid" />
+        <div className="absolute inset-0 opacity-20 data-grid" />
+
+        {/* Ambient Glows */}
+        <div className="absolute top-1/4 -left-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-blue-500/10 rounded-full blur-[120px] animate-pulse" />
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md border border-[#2A2A2A] bg-[#1A1A1A]/80 backdrop-blur-xl rounded-3xl p-10 shadow-[0_0_100px_rgba(0,255,65,0.05)] relative z-10"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="w-full max-w-md relative z-10"
         >
-          {/* Tactical Corners */}
-          <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-[#00FF41]/30 rounded-tl-lg" />
-          <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-[#00FF41]/30 rounded-br-lg" />
+          <div className="bg-[#121214]/80 backdrop-blur-2xl border border-white/5 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden group">
+            {/* HUD Elements */}
+            <div className="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-emerald-500/30 rounded-tl-3xl transition-all group-hover:w-16 group-hover:h-16" />
+            <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-emerald-500/30 rounded-br-3xl transition-all group-hover:w-16 group-hover:h-16" />
 
-          <div className="text-center space-y-4">
-            <div className="relative inline-block">
-              <div className="absolute inset-0 bg-[#00FF41]/20 blur-2xl rounded-full animate-pulse" />
-              <Radio className="w-16 h-16 text-[#00FF41] relative z-10 mx-auto" strokeWidth={1.5} />
-            </div>
-            <div>
-              <h1 className="text-4xl font-serif italic text-[#E4E3E0] tracking-tight">SOS MESH</h1>
-              <p className="text-[10px] font-mono text-[#00FF41] uppercase tracking-[0.3em] font-bold mt-2">Tactical Node Initialization</p>
+            <div className="text-center space-y-8">
+              <div className="relative inline-flex items-center justify-center">
+                <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full animate-pulse" />
+                <div className="relative bg-black/40 p-5 rounded-2xl border border-emerald-500/20 shadow-inner">
+                  <Radio className="w-12 h-12 text-emerald-400" strokeWidth={1.5} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h1 className="text-5xl font-serif italic text-white tracking-tight">SOS <span className="text-emerald-500">MESH</span></h1>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="h-[1px] w-8 bg-emerald-500/20" />
+                  <p className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-[0.4em] font-bold">Protocol v4.2.0 Active</p>
+                  <span className="h-[1px] w-8 bg-emerald-500/20" />
+                </div>
+              </div>
+
+              <div className="space-y-6 text-left">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-white/40 uppercase ml-1 flex items-center gap-2">
+                    <div className="w-1 h-1 bg-emerald-500 rounded-full" />
+                    Responder Identity
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && userName && setIsRegistered(true)}
+                      placeholder="Enter unit callsign"
+                      className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-sm font-mono text-emerald-400 focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all placeholder:text-white/10"
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20">
+                      <Zap size={14} className="text-emerald-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => userName && setIsRegistered(true)}
+                    disabled={!userName}
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-mono font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 group"
+                  >
+                    ESTABLISH LINK <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                  </button>
+
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      <span className="text-[9px] font-mono text-white/20 uppercase tracking-widest">Secure Uplink</span>
+                    </div>
+                    <span className="text-[9px] font-mono text-white/20 uppercase tracking-widest">AES-256 BIT</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-6 mt-12">
-            <div className="space-y-2">
-              <label className="text-[10px] font-mono text-white/30 uppercase ml-1">Responder Identity</label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && userName && setIsRegistered(true)}
-                placeholder="Enter unit name..."
-                className="w-full bg-black/60 border border-[#2A2A2A] p-4 rounded-xl text-sm font-mono text-[#00FF41] focus:border-[#00FF41]/50 focus:ring-1 focus:ring-[#00FF41]/20 outline-none transition-all placeholder:text-white/10"
-              />
-            </div>
-
-            <button
-              onClick={() => userName && setIsRegistered(true)}
-              className="w-full bg-[#00FF41] text-black font-mono font-bold py-4 rounded-xl hover:bg-[#00CC33] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(0,255,65,0.2)]"
-            >
-              AUTH & JOIN MESH <ChevronRight size={18} />
-            </button>
-
-            <p className="text-[9px] font-mono text-white/20 text-center uppercase tracking-widest leading-relaxed">
-              Standard encryption active <br />
-              P2P Protocol: IEEE 802.15.4
-            </p>
-          </div>
+          <p className="mt-8 text-[9px] font-mono text-white/10 text-center uppercase tracking-[0.3em] leading-relaxed max-w-[280px] mx-auto">
+            Emergency Peer-to-Peer Network <br />
+            Standard IEEE 802.15.4 COMPLIANT
+          </p>
         </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="h-[100dvh] flex flex-col md:grid md:grid-cols-12 bg-[#141414] overflow-hidden">
-      <aside className={cn("md:col-span-3 border-r border-[#2A2A2A] flex flex-col bg-[#1A1A1A] transition-all", activeTab === 'system' ? 'fixed inset-0 z-50 md:relative flex pb-16' : 'hidden md:flex')}>
-        <div className="p-4 md:p-6 border-b border-[#2A2A2A] flex justify-between items-center md:block">
-          <div className="flex items-center gap-3">
-            <Radio className="text-[#00FF41]" size={20} />
-            <div><h2 className="text-sm font-serif italic text-[#E4E3E0]">{userName}</h2><p className="text-[10px] font-mono text-[#00FF41]">NODE ACTIVE</p></div>
+    <div className="h-[100dvh] flex flex-col md:grid md:grid-cols-12 bg-[#0a0a0b] overflow-hidden selection:bg-emerald-500 selection:text-black">
+      <div className="scanline" />
+
+      {/* Sidebar Overlay for Mobile */}
+      <aside className={cn(
+        "md:col-span-3 border-r border-white/5 flex flex-col bg-[#121214] transition-all duration-500 ease-in-out",
+        activeTab === 'system' ? 'fixed inset-0 z-[70] md:relative' : 'hidden md:flex'
+      )}>
+        <div className="p-6 border-b border-white/5 flex justify-between items-center group">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-emerald-500/20 blur-lg rounded-full animate-pulse" />
+              <Radio className="text-emerald-500 relative z-10" size={24} />
+            </div>
+            <div>
+              <h2 className="text-sm font-serif italic text-white/90 leading-none">{userName}</h2>
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <p className="text-[10px] font-mono text-emerald-500 font-bold tracking-widest uppercase">Node Online</p>
+              </div>
+            </div>
           </div>
-          <button onClick={() => setActiveTab('map')} className="md:hidden p-2 text-white/40"><ChevronRight size={24} className="rotate-90" /></button>
+          <button onClick={() => setActiveTab('map')} className="md:hidden p-2 text-white/20 hover:text-white transition-colors">
+            <ChevronRight size={20} className="rotate-90" />
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard icon={<Users size={14} />} label="PEERS" value={nodes.length.toString()} subValue={nodes.length === 0 ? "SEARCHING..." : "CONNECTED"} />
-            <StatCard icon={<Zap size={14} />} label="HOPS" value={messages.length > 0 ? messages[0].hopCount.toString() : "0"} />
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div className="grid grid-cols-2 gap-4">
+            <StatCard
+              icon={<Users size={14} className="text-emerald-500" />}
+              label="PEERS"
+              value={nodes.length.toString()}
+              subValue={nodes.length === 0 ? "SCANNING..." : "STABLE"}
+            />
+            <StatCard
+              icon={<Zap size={14} className="text-blue-500" />}
+              label="HOPS"
+              value={messages.length > 0 ? messages[0].hopCount.toString() : "0"}
+              subValue="LATENCY: LOW"
+            />
           </div>
 
-          <div className="space-y-3">
-            <label className="text-[10px] font-mono text-white/40">SIGNAL MODE</label>
-            <div className="flex gap-2">
-              <button onClick={() => setP2pMode('wifi')} className={cn("flex-1 py-3 rounded border text-[9px] font-mono", p2pMode === 'wifi' ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" : "bg-black/40 border-[#2A2A2A] text-white/30")}>LOCAL WIFI</button>
-              <button onClick={() => setP2pMode('bluetooth')} className={cn("flex-1 py-3 rounded border text-[9px] font-mono", p2pMode === 'bluetooth' ? "bg-blue-500/10 border-blue-500 text-blue-500" : "bg-black/40 border-[#2A2A2A] text-white/30")}>BLUETOOTH</button>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-white/30 uppercase">
+              <div className="flex items-center gap-2">
+                <Activity size={12} />
+                SIGNAL MODE
+              </div>
+              <span className="text-emerald-500/50">ENCRYPTED</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setP2pMode('wifi')}
+                className={cn(
+                  "py-3 rounded-xl border text-[10px] font-mono font-bold transition-all",
+                  p2pMode === 'wifi'
+                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                    : "bg-black/20 border-white/5 text-white/30 hover:border-white/20"
+                )}
+              >
+                M-WIFI
+              </button>
+              <button
+                onClick={() => setP2pMode('bluetooth')}
+                className={cn(
+                  "py-3 rounded-xl border text-[10px] font-mono font-bold transition-all",
+                  p2pMode === 'bluetooth'
+                    ? "bg-blue-500/10 border-blue-500/50 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+                    : "bg-black/20 border-white/5 text-white/30 hover:border-white/20"
+                )}
+              >
+                BT-LE
+              </button>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <label className="text-[10px] font-mono text-white/40">ROUTING PROTOCOL</label>
-            {Object.values(RoutingMode).map(mode => (
-              <button key={mode} onClick={() => setRoutingMode(mode)} className={cn("w-full text-left px-4 py-3 rounded border text-[10px] font-mono", routingMode === mode ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" : "bg-black/40 border-[#2A2A2A] text-white/40 hover:border-white/20")}>{mode}</button>
-            ))}
-          </div>
-
-          <div className="pt-6 border-t border-[#2A2A2A] space-y-4">
-            {deferredPrompt && (
-              <button
-                onClick={installApp}
-                className="w-full bg-[#00FF41] text-black text-[10px] font-mono font-bold py-3 rounded hover:bg-[#00CC33] transition-all"
-              >
-                INSTALL APP (OFFLINE)
-              </button>
-            )}
+          <div className="space-y-4">
+            <label className="text-[10px] font-mono tracking-widest text-white/30 uppercase flex items-center gap-2">
+              <ShieldAlert size={12} />
+              ROUTING PROTOCOL
+            </label>
+            <div className="space-y-2">
+              {Object.values(RoutingMode).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => setRoutingMode(mode)}
+                  className={cn(
+                    "w-full text-left px-4 py-3 rounded-xl border text-[10px] font-mono transition-all relative overflow-hidden group",
+                    routingMode === mode
+                      ? "bg-emerald-500/5 border-emerald-500/40 text-emerald-400"
+                      : "bg-transparent border-white/5 text-white/30 hover:bg-white/5"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-1 transition-all",
+                    routingMode === mode ? "bg-emerald-500 shadow-[0_0_10px_emerald-500]" : "bg-transparent"
+                  )} />
+                  {mode}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="hidden md:block p-6 border-t border-[#2A2A2A]">
-          <button onClick={triggerSOS} className="w-full bg-red-600 hover:bg-red-700 text-white font-mono font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-all flex flex-col items-center"><ShieldAlert size={24} /><span className="text-xs">BROADCAST SOS</span></button>
+        <div className="p-6 border-t border-white/5 space-y-4 bg-black/20">
+          {deferredPrompt && (
+            <button
+              onClick={installApp}
+              className="w-full bg-emerald-500 text-black text-[11px] font-mono font-black py-3 rounded-xl hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/10 group"
+            >
+              UPGRADE TO NATIVE
+            </button>
+          )}
+          <button
+            onClick={triggerSOS}
+            className="w-full bg-red-600 hover:bg-red-500 text-white font-mono font-black py-5 rounded-2xl shadow-2xl shadow-red-600/20 active:scale-[0.98] transition-all flex flex-col items-center gap-1 group"
+          >
+            <div className="relative">
+              <ShieldAlert size={28} className="group-hover:scale-110 transition-transform" />
+              <div className="absolute inset-0 bg-white/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <span className="text-[10px] tracking-[0.2em] font-bold">BROADCAST EMERGENCY</span>
+          </button>
         </div>
       </aside>
 
-      <main className={cn("md:col-span-6 relative bg-black data-grid flex flex-col", activeTab === 'map' ? 'flex flex-1 pb-16 md:pb-0' : (activeTab === 'messages' ? 'flex flex-1 pb-16 md:pb-0' : 'hidden md:flex'))}>
+      <main className={cn(
+        "md:col-span-6 relative bg-black flex flex-col transition-all duration-500",
+        activeTab === 'map' ? 'flex-1 md:pb-0' : (activeTab === 'messages' ? 'flex-1 md:pb-0' : 'hidden md:flex')
+      )}>
+        <div className="absolute inset-0 data-grid opacity-30 pointer-events-none" />
+
         <div className={cn("flex-1 flex flex-col relative", activeTab === 'map' ? 'flex' : 'hidden md:flex')}>
-          <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
-            <div className="bg-[#1A1A1A]/90 backdrop-blur-md border border-[#00FF41]/20 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_20px_rgba(0,255,65,0.1)]">
-              <div className="w-2 h-2 rounded-full bg-[#00FF41] animate-pulse" />
+          <div className="absolute top-6 left-6 z-20 flex items-center gap-4">
+            <div className="bg-[#121214]/90 backdrop-blur-xl border border-white/5 p-3 px-5 rounded-2xl flex items-center gap-4 shadow-2xl">
+              <div className="relative">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="absolute inset-0 bg-emerald-500/50 rounded-full blur-md animate-ping" />
+              </div>
               <div className="flex flex-col">
-                <span className="text-[9px] font-mono text-white/40 leading-none">STATUS</span>
-                <span className="text-[10px] font-mono text-[#00FF41] tracking-widest uppercase font-bold">TACTICAL MESH ACTIVE</span>
+                <span className="text-[10px] font-mono text-emerald-500 font-black tracking-widest">TACTICAL LINK ACTIVE</span>
+                <span className="text-[9px] font-mono text-white/40 uppercase tracking-tighter">Lat: {realCoords?.lat.toFixed(4) || "0.0000"} Long: {realCoords?.lng.toFixed(4) || "0.0000"}</span>
               </div>
             </div>
           </div>
+
           <div className="w-full h-full relative overflow-hidden">
-            <div className="scanline" />
-            <svg ref={mapRef} className="w-full h-full" />
-            <div className="md:hidden absolute bottom-24 left-6 z-30 flex flex-col gap-2">
-              <div className="bg-black/80 backdrop-blur-md border border-[#2A2A2A] p-2 rounded-lg flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#00FF41]" />
-                <span className="text-[8px] font-mono text-white/60 uppercase">Node ID: {myId?.slice(0, 8)}</span>
+            <svg ref={mapRef} className="w-full h-full cursor-crosshair" />
+
+            {/* HUD Overlays */}
+            <div className="absolute inset-0 pointer-events-none border-[1px] border-white/5 m-4 rounded-3xl overflow-hidden">
+              <div className="absolute top-0 left-0 w-8 h-px bg-emerald-500/40" />
+              <div className="absolute top-0 left-0 h-8 w-px bg-emerald-500/40" />
+              <div className="absolute bottom-0 right-0 w-8 h-px bg-emerald-500/40" />
+              <div className="absolute bottom-0 right-0 h-8 w-px bg-emerald-500/40" />
+            </div>
+
+            <div className="md:hidden absolute bottom-32 left-8 z-30 space-y-2">
+              <div className="bg-black/80 backdrop-blur-xl border border-white/5 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-[10px] font-mono text-white/60 tracking-widest uppercase">NODE: {myId?.slice(0, 8)}</span>
               </div>
-              <div className="bg-black/80 backdrop-blur-md border border-[#2A2A2A] p-2 rounded-lg flex items-center gap-2">
+              <div className="bg-black/80 backdrop-blur-xl border border-white/5 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                <span className="text-[8px] font-mono text-white/60 uppercase">Mode: {p2pMode.toUpperCase()}</span>
+                <span className="text-[10px] font-mono text-white/60 tracking-widest uppercase">{p2pMode.toUpperCase()} MESH</span>
               </div>
             </div>
 
-            {/* Big SOS button for mobile - overlaid on map */}
-            <div className="md:hidden absolute bottom-8 left-1/2 -translate-x-1/2 z-30">
+            <div className="md:hidden absolute bottom-8 left-1/2 -translate-x-1/2 z-[60]">
               <button
                 onClick={triggerSOS}
-                className="flex flex-col items-center justify-center w-28 h-28 rounded-full bg-red-600 hover:bg-red-700 active:scale-90 shadow-[0_0_50px_rgba(220,38,38,0.7)] border-[6px] border-black ring-2 ring-red-500 transition-all group"
+                className="relative flex flex-col items-center justify-center w-28 h-28 rounded-full bg-red-600 active:scale-90 transition-all group overflow-hidden"
               >
-                <div className="absolute inset-0 rounded-full border-2 border-white/20 animate-ping pointer-events-none" />
-                <ShieldAlert size={36} className="text-white mb-1" />
-                <span className="text-white font-black text-xs tracking-[0.2em]">TRIGGER</span>
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-active:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 rounded-full border-4 border-red-500 animate-[ping_2s_infinite]" />
+                <ShieldAlert size={36} className="text-white mb-1 relative z-10" />
+                <span className="text-white font-black text-[10px] tracking-[0.2em] relative z-10">SOS</span>
               </button>
             </div>
           </div>
         </div>
 
-        <div className={cn("border-t border-[#2A2A2A] bg-[#1A1A1A] flex flex-col", activeTab === 'messages' ? 'absolute inset-0 z-40 pb-16 flex' : 'h-48 md:h-64 hidden md:flex')}>
-          <div className="p-3 border-b border-[#2A2A2A] flex items-center justify-between text-[10px] font-mono text-white/40 uppercase">
-            <span><History size={12} className="inline mr-2" /> SOS Buffer</span>
-            <span className="text-[#00FF41]">{messages.length} PACKETS</span>
+        <div className={cn(
+          "bg-[#0a0a0b] border-t border-white/5 flex flex-col",
+          activeTab === 'messages' ? 'absolute inset-0 z-[60] pb-20' : 'h-64 hidden md:flex'
+        )}>
+          <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between text-[10px] font-mono font-black tracking-widest text-white/30 uppercase bg-white/[0.02]">
+            <div className="flex items-center gap-3">
+              <History size={14} className="text-emerald-500" />
+              SIGNAL BUFFER
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-emerald-500">{messages.length} DATA PACKETS</span>
+              <div className="w-px h-3 bg-white/10" />
+              <button className="hover:text-white transition-colors">CLEAR</button>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {messages.map((m) => (
-              <div key={m.messageId} className="bg-black/40 border-l-2 border-red-500 p-3 rounded-r flex items-center justify-between">
-                <div><div className="text-[10px] font-mono text-red-400 font-bold uppercase">{m.senderName}</div><p className="text-xs text-white/80">{m.content}</p></div>
-                <div className="text-right text-[10px] font-mono text-white/40">H:{m.hopCount}<br /><span className="text-[8px]">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+          <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-white/10 space-y-2">
+                <Wifi size={32} strokeWidth={1} />
+                <p className="text-[10px] font-mono uppercase tracking-[0.3em]">No emergency packets detected</p>
               </div>
-            ))}
+            ) : (
+              messages.map((m) => (
+                <div key={m.messageId} className="bg-white/[0.03] border border-white/5 border-l-4 border-l-red-500/50 p-4 rounded-xl flex items-center justify-between group hover:bg-white/[0.05] transition-all">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono text-red-400 font-black tracking-widest uppercase">{m.senderName}</span>
+                      <span className="text-[9px] font-mono text-white/20">•</span>
+                      <span className="text-[9px] font-mono text-white/30 uppercase">{new Date(m.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <p className="text-sm text-white/90 font-medium">{m.content}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-mono text-white/30 bg-white/5 px-2 py-1 rounded">HOP COUNT: {m.hopCount}</div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </main>
 
-      <aside className="hidden md:flex md:col-span-3 border-l border-[#2A2A2A] bg-[#1A1A1A] flex-col">
-        <div className="p-6 border-b border-[#2A2A2A] space-y-4">
-          <MetricBar label="Delivery Prob" value={84} color="#00FF41" />
-          <MetricBar label="Efficiency" value={92} color="#00FF41" />
+      <aside className="hidden md:flex md:col-span-3 border-l border-white/5 bg-[#121214] flex-col">
+        <div className="p-8 border-b border-white/5 space-y-8 bg-black/20">
+          <MetricBar label="Delivery Probability" value={84} color="#10b981" />
+          <MetricBar label="Network Efficiency" value={92} color="#3b82f6" />
         </div>
-        <div className="flex-1 flex flex-col overflow-hidden p-4 space-y-2 font-mono text-[9px]">
-          <div className="text-white/40 uppercase mb-2">SYSTEM LOGS</div>
-          <div className="flex-1 overflow-y-auto space-y-1">
+        <div className="flex-1 flex flex-col overflow-hidden p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-mono font-black tracking-widest text-white/20 uppercase flex items-center gap-2">
+              <Zap size={12} />
+              RUNTIME LOGS
+            </div>
+            <div className="flex gap-1">
+              <div className="w-1 h-1 rounded-full bg-emerald-500" />
+              <div className="w-1 h-1 rounded-full bg-emerald-500/30" />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-4 font-mono text-[9px] custom-scrollbar">
             {logs.map((log, i) => (
-              <div key={i} className="flex gap-2">
-                <span className="text-white/20">[{log.time}]</span>
-                <span className={cn(log.type === 'alert' ? 'text-red-400' : log.type === 'success' ? 'text-[#00FF41]' : 'text-white/60')}>{log.msg}</span>
+              <div key={i} className="flex gap-3 items-start animate-fade-in">
+                <span className="text-white/10 whitespace-nowrap">[{log.time}]</span>
+                <span className={cn(
+                  "leading-relaxed tracking-tight",
+                  log.type === 'alert' ? 'text-red-400 font-bold' :
+                    log.type === 'success' ? 'text-emerald-400' :
+                      'text-white/40'
+                )}>
+                  {log.msg.toUpperCase()}
+                </span>
               </div>
             ))}
           </div>
         </div>
       </aside>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#1A1A1A]/95 backdrop-blur-md border-t border-[#2A2A2A] grid grid-cols-3 items-center z-[60]">
-        <button onClick={() => setActiveTab('map')} className={cn("flex flex-col items-center gap-1", activeTab === 'map' ? "text-[#00FF41]" : "text-white/40")}><MapIcon size={20} /><span className="text-[9px] font-mono">MAP</span></button>
-        <button onClick={() => setActiveTab('messages')} className={cn("flex flex-col items-center gap-1", activeTab === 'messages' ? "text-[#00FF41]" : "text-white/40")}><History size={20} /><span className="text-[9px]">ALERTS</span></button>
-        <button onClick={() => setActiveTab('system')} className={cn("flex flex-col items-center gap-1", activeTab === 'system' ? "text-[#00FF41]" : "text-white/40")}><Settings size={20} /><span className="text-[9px]">SYSTEM</span></button>
+      {/* Mobile Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#121214]/90 backdrop-blur-2xl border-t border-white/5 grid grid-cols-3 items-center z-[80] shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+        <button onClick={() => setActiveTab('map')} className={cn(
+          "flex flex-col items-center gap-1.5 transition-all",
+          activeTab === 'map' ? "text-emerald-500" : "text-white/20"
+        )}>
+          <MapIcon size={22} strokeWidth={activeTab === 'map' ? 2.5 : 2} />
+          <span className="text-[9px] font-mono font-black tracking-wider">MAP</span>
+        </button>
+        <button onClick={() => setActiveTab('messages')} className={cn(
+          "flex flex-col items-center gap-1.5 transition-all",
+          activeTab === 'messages' ? "text-emerald-500" : "text-white/20"
+        )}>
+          <div className="relative">
+            <History size={22} strokeWidth={activeTab === 'messages' ? 2.5 : 2} />
+            {messages.length > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-[#121214]" />}
+          </div>
+          <span className="text-[9px] font-mono font-black tracking-wider">ALERTS</span>
+        </button>
+        <button onClick={() => setActiveTab('system')} className={cn(
+          "flex flex-col items-center gap-1.5 transition-all",
+          activeTab === 'system' ? "text-emerald-500" : "text-white/20"
+        )}>
+          <Settings size={22} strokeWidth={activeTab === 'system' ? 2.5 : 2} />
+          <span className="text-[9px] font-mono font-black tracking-wider">SYSTEM</span>
+        </button>
       </nav>
 
-
-
+      {/* Emergency Global Alert */}
       <AnimatePresence>
         {activeEmergency && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-red-950/90 backdrop-blur-xl">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-lg bg-black border-4 border-red-600 p-8 rounded-3xl shadow-[0_0_100px_rgba(220,38,38,0.5)] text-center space-y-6">
-              <ShieldAlert size={48} className="text-red-500 mx-auto animate-bounce" />
-              <h2 className="text-4xl font-mono font-black text-red-500">HELP REQUIRED</h2>
-              <p className="text-white/90 italic">Signal from {activeEmergency.senderName}</p>
-              <div className="bg-red-900/20 border border-red-500/30 p-4 rounded-xl font-mono text-sm text-red-200">"{activeEmergency.content}"</div>
-              <button onClick={() => setActiveEmergency(null)} className="w-full bg-white text-black font-mono font-bold py-4 rounded-xl">ACKNOWLEDGE & DISMISS</button>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-red-950/40 backdrop-blur-3xl"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-lg bg-[#0a0a0b] border border-red-500/30 p-10 rounded-[2.5rem] shadow-[0_0_100px_rgba(239,68,68,0.3)] text-center space-y-8 relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-red-500/[0.02] animate-pulse" />
+              <div className="relative">
+                <div className="w-24 h-24 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <ShieldAlert size={56} className="text-red-500 animate-bounce" />
+                </div>
+                <h2 className="text-4xl font-mono font-black text-white tracking-tighter uppercase mb-2">Help Required</h2>
+                <p className="text-red-400/80 font-mono text-[10px] tracking-[0.3em] font-bold uppercase">CRITICAL SIGNAL DETECTED</p>
+              </div>
+
+              <div className="bg-white/[0.03] border border-white/5 p-6 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between text-[10px] font-mono text-white/30 uppercase tracking-widest">
+                  <span>SENDER: {activeEmergency.senderName}</span>
+                  <span>ID: {activeEmergency.senderId.slice(0, 8)}</span>
+                </div>
+                <div className="h-px bg-white/5" />
+                <p className="text-xl text-white font-medium italic">"{activeEmergency.content}"</p>
+              </div>
+
+              <button
+                onClick={() => setActiveEmergency(null)}
+                className="w-full bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase"
+              >
+                ACKNOWLEDGE & DISMISS
+              </button>
             </motion.div>
           </motion.div>
         )}
@@ -670,30 +933,36 @@ class BluetoothMeshManager(private val context: Context) {
 
 function StatCard({ icon, label, value, subValue }: { icon: React.ReactNode, label: string, value: string, subValue?: string }) {
   return (
-    <div className="bg-black/40 border border-[#2A2A2A] p-3 rounded-xl space-y-1">
-      <div className="flex items-center gap-2 text-[10px] font-mono text-white/30 uppercase">{icon} {label}</div>
-      <div className="text-xl font-mono text-[#E4E3E0]">{value}</div>
-      {subValue && <div className="text-[8px] font-mono text-[#00FF41]/60 uppercase">{subValue}</div>}
+    <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-2 group hover:bg-white/[0.04] transition-all relative overflow-hidden">
+      <div className="flex items-center gap-2 text-[9px] font-mono font-black text-white/20 tracking-widest uppercase">{icon} {label}</div>
+      <div className="flex items-end gap-2">
+        <div className="text-3xl font-mono font-medium text-white tracking-tighter leading-none">{value}</div>
+        {subValue && <div className="text-[9px] font-mono text-emerald-500 font-bold uppercase mb-1">{subValue}</div>}
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-right from-transparent via-white/5 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform" />
     </div>
   );
 }
 
 function MetricBar({ label, value, color }: { label: string, value: number, color: string }) {
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-end text-[9px] font-mono tracking-tighter uppercase">
-        <span className="text-white/30">{label}</span>
-        <span style={{ color }} className="font-bold">{value}%</span>
+    <div className="space-y-3">
+      <div className="flex justify-between items-end text-[10px] font-mono font-black tracking-widest text-white/20 uppercase">
+        <span className="flex items-center gap-2">
+          <div className="w-1 h-1 rounded-full" style={{ backgroundColor: color }} />
+          {label}
+        </span>
+        <span style={{ color }} className="text-white/60">{value}%</span>
       </div>
-      <div className="h-1 bg-white/5 rounded-none overflow-hidden flex gap-1">
-        {Array.from({ length: 20 }).map((_, i) => (
+      <div className="h-1.5 bg-white/[0.03] rounded-full overflow-hidden flex gap-0.5 p-0.5">
+        {Array.from({ length: 12 }).map((_, i) => (
           <div
             key={i}
-            className="flex-1 h-full transition-all duration-1000"
+            className="flex-1 h-full rounded-full transition-all duration-1000"
             style={{
-              backgroundColor: i / 20 * 100 < value ? color : 'transparent',
-              opacity: i / 20 * 100 < value ? 0.6 : 0.1,
-              border: `1px solid ${i / 20 * 100 < value ? color : 'white'}`
+              backgroundColor: i / 12 * 100 < value ? color : 'rgb(255 255 255 / 0.05)',
+              opacity: i / 12 * 100 < value ? 0.8 : 0.2,
+              boxShadow: i / 12 * 100 < value ? `0 0 10px ${color}44` : 'none'
             }}
           />
         ))}
@@ -701,3 +970,4 @@ function MetricBar({ label, value, color }: { label: string, value: number, colo
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@1,400;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Cormorant+Garamond:ital,wght@1,400;1,600;1,700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -8,29 +8,78 @@
 }
 
 :root {
-  --bg: #141414;
-  --ink: #E4E3E0;
-  --line: #2A2A2A;
-  --accent: #00FF41;
-  /* Matrix/Terminal Green */
+  --bg: #0a0a0b;
+  --bg-secondary: #121214;
+  --ink: #e2e2e5;
+  --ink-dim: rgba(226, 226, 229, 0.4);
+  --line: rgba(255, 255, 255, 0.03);
+  --accent: #00ff41;
+  --accent-dim: rgba(0, 255, 65, 0.2);
+  --emergency: #ff3e3e;
+  --emergency-dim: rgba(255, 62, 62, 0.2);
+  --signal: #3b82f6;
+  --signal-dim: rgba(59, 130, 246, 0.2);
+  --glass: rgba(18, 18, 20, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background-color: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  overflow: hidden;
 }
 
+::selection {
+  background-color: var(--accent);
+  color: var(--bg);
+}
+
+/* Tactical Backgrounds */
 .data-grid {
-  background-image: radial-gradient(var(--line) 1px, transparent 1px);
-  background-size: 30px 30px;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
 }
 
-.radar-sweep {
-  transform-origin: center;
-  animation: sweep 4s linear infinite;
+.hud-border {
+  position: relative;
+  border: 1px solid var(--glass-border);
 }
 
+.hud-border::before,
+.hud-border::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--accent-dim);
+  border-style: solid;
+}
+
+.hud-border-tr::before {
+  top: -1px;
+  left: -1px;
+  border-width: 2px 0 0 2px;
+  border-radius: 2px 0 0 0;
+}
+
+.hud-border-tr::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 2px 2px 0;
+  border-radius: 0 0 2px 0;
+}
+
+/* Animations */
 @keyframes sweep {
   from {
     transform: rotate(0deg);
@@ -41,28 +90,120 @@ body {
   }
 }
 
-.scanline {
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(to right, transparent, var(--accent), transparent);
-  opacity: 0.1;
-  position: absolute;
-  top: 0;
-  left: 0;
-  animation: scan 3s linear infinite;
-  pointer-events: none;
+.radar-sweep {
+  transform-origin: center;
+  animation: sweep 6s linear infinite;
 }
 
 @keyframes scan {
-  from {
-    top: 0%;
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
   }
 
-  to {
-    top: 100%;
+  50% {
+    opacity: 0.15;
+  }
+
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
   }
 }
 
-.glow-text {
-  text-shadow: 0 0 10px var(--accent);
+.scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 15vh;
+  background: linear-gradient(to bottom, transparent, var(--accent-dim), transparent);
+  animation: scan 4s linear infinite;
+  pointer-events: none;
+  z-index: 100;
+}
+
+@keyframes flicker {
+  0% {
+    opacity: 0.8;
+  }
+
+  5% {
+    opacity: 0.4;
+  }
+
+  10% {
+    opacity: 0.8;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  25% {
+    opacity: 0.2;
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-flicker {
+  animation: flicker 4s infinite step-end;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 0.3;
+    filter: blur(8px);
+  }
+
+  50% {
+    opacity: 0.6;
+    filter: blur(12px);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-dim);
+}
+
+/* Typography Helpers */
+.font-tactical {
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px var(--accent-dim);
+}
+
+.text-glow-error {
+  text-shadow: 0 0 10px var(--emergency-dim);
 }
