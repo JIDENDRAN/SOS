@@ -283,7 +283,19 @@ class BluetoothMeshManager(private val context: Context) {
   };
 
   const relayMessage = (msg: SOSMessage) => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
+    if (p2pMode === 'bluetooth') {
+      // Simulate Bluetooth proximity sending
+      const nearbyNodes = nodes.filter(n => {
+        const dist = Math.sqrt(Math.pow(n.x - myPos.x, 2) + Math.pow(n.y - myPos.y, 2));
+        return dist < 30 && n.id !== myId;
+      });
+
+      if (nearbyNodes.length > 0) {
+        addLog(`BLE: Broadcasting to ${nearbyNodes.length} nearby peers`, 'success');
+      } else {
+        addLog('BLE: Scanning for peers in range...', 'info');
+      }
+    } else if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'SEND_SOS', payload: msg }));
     }
   };
@@ -307,7 +319,10 @@ class BluetoothMeshManager(private val context: Context) {
     seenMessages.add(msg.messageId);
     setMessages(prev => [msg, ...prev]);
     relayMessage(msg);
-    if (ws.current?.readyState === WebSocket.OPEN) {
+
+    if (p2pMode === 'bluetooth') {
+      addLog('BLE: Emergency signal broadcasted via Bluetooth LE', 'alert');
+    } else if (ws.current?.readyState === WebSocket.OPEN) {
       addLog('SOS Broadcast sent to mesh!', 'alert');
     } else {
       addLog('SOS Saved Offline. Waiting for peers...', 'success');
@@ -338,7 +353,22 @@ class BluetoothMeshManager(private val context: Context) {
 
     nodes.forEach(node => {
       const isMe = node.id === myId;
-      const g = svg.append("g").attr("transform", `translate(${(node.x / 100) * width}, ${(node.y / 100) * height})`);
+      const x = (node.x / 100) * width;
+      const y = (node.y / 100) * height;
+      const g = svg.append("g").attr("transform", `translate(${x}, ${y})`);
+
+      if (isMe && p2pMode === 'bluetooth') {
+        // Signal Range Circle
+        svg.append("circle")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", (30 / 100) * width)
+          .attr("fill", "rgba(59, 130, 246, 0.05)")
+          .attr("stroke", "rgba(59, 130, 246, 0.2)")
+          .attr("stroke-dasharray", "4,4")
+          .lower();
+      }
+
       g.append("circle").attr("r", isMe ? 8 : 6).attr("fill", isMe ? "#00FF41" : "#E4E3E0");
       if (isMe) g.append("circle").attr("r", 15).attr("fill", "none").attr("stroke", "#00FF41").attr("opacity", 0.3).attr("class", "animate-ping");
       g.append("text").text(node.name).attr("dy", -12).attr("text-anchor", "middle").attr("fill", "#E4E3E0").attr("font-size", "10px").attr("font-family", "JetBrains Mono");
