@@ -522,7 +522,7 @@ class BluetoothMeshManager(private val context: Context) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:grid md:grid-cols-12 bg-[#141414] overflow-hidden">
+    <div className="h-[100dvh] flex flex-col md:grid md:grid-cols-12 bg-[#141414] overflow-hidden">
       <aside className={cn("md:col-span-3 border-r border-[#2A2A2A] flex flex-col bg-[#1A1A1A] transition-all", activeTab === 'system' ? 'fixed inset-0 z-50 md:relative flex pb-16' : 'hidden md:flex')}>
         <div className="p-4 md:p-6 border-b border-[#2A2A2A] flex justify-between items-center md:block">
           <div className="flex items-center gap-3">
@@ -571,7 +571,7 @@ class BluetoothMeshManager(private val context: Context) {
       </aside>
 
       <main className={cn("md:col-span-6 relative bg-black data-grid flex flex-col", activeTab === 'map' ? 'flex flex-1 pb-16 md:pb-0' : (activeTab === 'messages' ? 'flex flex-1 pb-16 md:pb-0' : 'hidden md:flex'))}>
-        <div className={cn("flex-1 relative", activeTab === 'map' ? 'block' : 'hidden md:block')}>
+        <div className={cn("flex-1 flex flex-col relative", activeTab === 'map' ? 'flex' : 'hidden md:flex')}>
           <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
             <div className="bg-[#1A1A1A]/90 backdrop-blur-md border border-[#00FF41]/20 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_20px_rgba(0,255,65,0.1)]">
               <div className="w-2 h-2 rounded-full bg-[#00FF41] animate-pulse" />
