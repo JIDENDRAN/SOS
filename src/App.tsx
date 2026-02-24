@@ -9,8 +9,7 @@ import {
   Users,
   Zap,
   ChevronRight,
-  History,
-  Info
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as d3 from 'd3';
@@ -70,7 +69,6 @@ export default function App() {
   const [realCoords, setRealCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTab, setActiveTab] = useState<'map' | 'messages' | 'system'>('map');
   const [p2pMode, setP2pMode] = useState<'cloudoffline' | 'bluetooth'>('cloudoffline');
-  const [showNativeCode, setShowNativeCode] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
 
@@ -443,18 +441,14 @@ class BluetoothMeshManager(private val context: Context) {
           </div>
 
           <div className="pt-6 border-t border-[#2A2A2A] space-y-4">
-            <button onClick={() => setShowNativeCode(true)} className="w-full border border-[#00FF41]/30 text-[#00FF41] text-[10px] font-mono py-3 rounded hover:bg-[#00FF41]/10">GET KOTLIN SOURCE FOR APK</button>
-
             {deferredPrompt && (
               <button
                 onClick={installApp}
                 className="w-full bg-[#00FF41] text-black text-[10px] font-mono font-bold py-3 rounded hover:bg-[#00CC33] transition-all"
               >
-                INSTALL WEB APP (OFFLINE)
+                INSTALL APP (OFFLINE)
               </button>
             )}
-
-            <p className="text-[8px] font-mono text-white/20 italic">For real offline Bluetooth mesh, copy the code above into Android Studio.</p>
           </div>
         </div>
 
@@ -471,14 +465,18 @@ class BluetoothMeshManager(private val context: Context) {
               <span className="text-[10px] font-mono text-white/60 tracking-widest uppercase">TOPOLOGY Map</span>
             </div>
           </div>
-          <div className="w-full h-full relative" onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const x = ((e.clientX - rect.left) / rect.width) * 100;
-            const y = ((e.clientY - rect.top) / rect.height) * 100;
-            updatePosition(x, y);
-          }}>
+          <div className="w-full h-full relative">
             <svg ref={mapRef} className="w-full h-full" />
-            <div className="absolute bottom-4 right-4 text-[10px] font-mono text-white/20">[ {myPos.x.toFixed(1)}, {myPos.y.toFixed(1)} ]</div>
+            {/* Big SOS button for mobile - overlaid on map */}
+            <div className="md:hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+              <button
+                onClick={triggerSOS}
+                className="flex flex-col items-center justify-center w-24 h-24 rounded-full bg-red-600 hover:bg-red-700 active:scale-95 shadow-[0_0_40px_rgba(220,38,38,0.6)] border-4 border-red-400 transition-all"
+              >
+                <ShieldAlert size={32} className="text-white" />
+                <span className="text-white font-black text-xs tracking-widest mt-1">SOS</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -516,24 +514,13 @@ class BluetoothMeshManager(private val context: Context) {
         </div>
       </aside>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#1A1A1A]/95 backdrop-blur-md border-t border-[#2A2A2A] grid grid-cols-4 items-center z-[60]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#1A1A1A]/95 backdrop-blur-md border-t border-[#2A2A2A] grid grid-cols-3 items-center z-[60]">
         <button onClick={() => setActiveTab('map')} className={cn("flex flex-col items-center gap-1", activeTab === 'map' ? "text-[#00FF41]" : "text-white/40")}><MapIcon size={20} /><span className="text-[9px] font-mono">MAP</span></button>
         <button onClick={() => setActiveTab('messages')} className={cn("flex flex-col items-center gap-1", activeTab === 'messages' ? "text-[#00FF41]" : "text-white/40")}><History size={20} /><span className="text-[9px]">ALERTS</span></button>
         <button onClick={() => setActiveTab('system')} className={cn("flex flex-col items-center gap-1", activeTab === 'system' ? "text-[#00FF41]" : "text-white/40")}><Settings size={20} /><span className="text-[9px]">SYSTEM</span></button>
-        <button onClick={triggerSOS} className="flex flex-col items-center text-red-500 active:scale-90 transition-transform"><div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center border border-red-600/40"><ShieldAlert size={22} className="animate-pulse" /></div><span className="text-[8px] font-bold">SOS</span></button>
       </nav>
 
-      <AnimatePresence>
-        {showNativeCode && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-2xl bg-[#1A1A1A] border border-[#2A2A2A] p-6 rounded-2xl flex flex-col max-h-[90vh]">
-              <div className="flex justify-between items-center mb-4"><h3 className="text-sm font-mono text-[#00FF41] uppercase">Android (Kotlin) Source</h3><button onClick={() => setShowNativeCode(false)} className="text-white/40"><Info size={20} /></button></div>
-              <div className="flex-1 overflow-y-auto bg-black p-4 rounded-lg border border-[#2A2A2A]"><pre className="text-[10px] font-mono text-white/80 whitespace-pre-wrap">{KOTLIN_CODE}</pre></div>
-              <button onClick={() => setShowNativeCode(false)} className="mt-4 w-full bg-[#00FF41] text-black font-mono font-bold py-3 rounded-lg">CLOSE SOURCE</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       <AnimatePresence>
         {activeEmergency && (
