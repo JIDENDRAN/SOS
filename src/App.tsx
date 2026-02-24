@@ -71,6 +71,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'map' | 'messages' | 'system'>('map');
   const [p2pMode, setP2pMode] = useState<'cloudoffline' | 'bluetooth'>('cloudoffline');
   const [showNativeCode, setShowNativeCode] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
 
   const KOTLIN_CODE = `// --- REAL OFFLINE BLUETOOTH MESH CODE (Android/Kotlin) ---
@@ -143,6 +144,22 @@ class BluetoothMeshManager(private val context: Context) {
   const mapRef = useRef<SVGSVGElement>(null);
 
   // --- Logic ---
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const installApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') setDeferredPrompt(null);
+  };
 
   const addLog = (msg: string, type: 'info' | 'alert' | 'success' = 'info') => {
     setLogs(prev => [{ time: new Date().toLocaleTimeString(), msg, type }, ...prev].slice(0, 50));
@@ -427,6 +444,16 @@ class BluetoothMeshManager(private val context: Context) {
 
           <div className="pt-6 border-t border-[#2A2A2A] space-y-4">
             <button onClick={() => setShowNativeCode(true)} className="w-full border border-[#00FF41]/30 text-[#00FF41] text-[10px] font-mono py-3 rounded hover:bg-[#00FF41]/10">GET KOTLIN SOURCE FOR APK</button>
+
+            {deferredPrompt && (
+              <button
+                onClick={installApp}
+                className="w-full bg-[#00FF41] text-black text-[10px] font-mono font-bold py-3 rounded hover:bg-[#00CC33] transition-all"
+              >
+                INSTALL WEB APP (OFFLINE)
+              </button>
+            )}
+
             <p className="text-[8px] font-mono text-white/20 italic">For real offline Bluetooth mesh, copy the code above into Android Studio.</p>
           </div>
         </div>
