@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => {
           name: 'Resilient SOS Comm',
           short_name: 'SOS',
           description: 'Emergency P2P Communication System',
-          theme_color: '#141414',
-          background_color: '#141414',
+          theme_color: '#0a0a0b',
+          background_color: '#0a0a0b',
           display: 'standalone',
           icons: [
             {

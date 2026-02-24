@@ -71,7 +71,23 @@ export default function App() {
   const [p2pMode, setP2pMode] = useState<'bluetooth' | 'wifi'>('bluetooth');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isEncrypting, setIsEncrypting] = useState(false);
 
+  const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId), [nodes, selectedNodeId]);
+
+  const simulateEncryption = async (text: string) => {
+    setIsEncrypting(true);
+    // Visual delay for "Encryption" effect
+    await new Promise(r => setTimeout(r, 800));
+    setIsEncrypting(false);
+    return `[AES-256-GCM] ${btoa(text).slice(0, 16)}...`;
+  };
+
+  const clearMessages = () => {
+    setMessages([]);
+    addLog('Signal buffer flushed.', 'info');
+  };
   const KOTLIN_CODE = `// --- REAL OFFLINE BLUETOOTH MESH CODE (Android/Kotlin) ---
 // Requires: Bluetooth + Admin permissions in Manifest
 
@@ -315,7 +331,13 @@ class BluetoothMeshManager(private val context: Context) {
     }
   };
 
-  const triggerSOS = () => {
+  const triggerSOS = async () => {
+    const rawContent = isLiveLocation && realCoords
+      ? `EMERGENCY at [${realCoords.lat.toFixed(6)}, ${realCoords.lng.toFixed(6)}]`
+      : "EMERGENCY: Assistance required.";
+
+    const content = await simulateEncryption(rawContent);
+
     const msg: SOSMessage = {
       messageId: Math.random().toString(36).substring(7),
       senderId: myId || 'unknown',
@@ -323,9 +345,7 @@ class BluetoothMeshManager(private val context: Context) {
       timestamp: Date.now(),
       ttl: ttl,
       hopCount: 0,
-      content: isLiveLocation && realCoords
-        ? `EMERGENCY at [${realCoords.lat.toFixed(6)}, ${realCoords.lng.toFixed(6)}]`
-        : "EMERGENCY: Assistance required.",
+      content: content,
       deliveryProbability: 1.0,
       lat: realCoords?.lat,
       lng: realCoords?.lng
@@ -353,7 +373,8 @@ class BluetoothMeshManager(private val context: Context) {
 
   useEffect(() => {
     if (!mapRef.current) return;
-    const svg = d3.select(mapRef.current);
+    const svg = d3.select(mapRef.current)
+      .on("click", () => setSelectedNodeId(null));
     svg.selectAll("*").remove();
     const width = mapRef.current.clientWidth;
     const height = mapRef.current.clientHeight;
@@ -415,7 +436,13 @@ class BluetoothMeshManager(private val context: Context) {
       const y = (node.y / 100) * height;
       const nodeColor = isMe ? "#10b981" : (p2pMode === 'bluetooth' ? "#3B82F6" : "#10b981");
 
-      const g = svg.append("g").attr("transform", `translate(${x}, ${y})`);
+      const g = svg.append("g")
+        .attr("transform", `translate(${x}, ${y})`)
+        .attr("class", "cursor-pointer group")
+        .on("click", (e) => {
+          e.stopPropagation();
+          setSelectedNodeId(node.id);
+        });
 
       if (isMe) {
         // Range Indicator Glow
@@ -714,13 +741,30 @@ class BluetoothMeshManager(private val context: Context) {
           )}
           <button
             onClick={triggerSOS}
-            className="w-full bg-red-600 hover:bg-red-500 text-white font-mono font-black py-5 rounded-2xl shadow-2xl shadow-red-600/20 active:scale-[0.98] transition-all flex flex-col items-center gap-1 group"
+            disabled={isEncrypting}
+            className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-mono font-black py-5 rounded-2xl shadow-2xl shadow-red-600/20 active:scale-[0.98] transition-all flex flex-col items-center gap-1 group"
           >
             <div className="relative">
-              <ShieldAlert size={28} className="group-hover:scale-110 transition-transform" />
+              {isEncrypting ? (
+                <div className="w-7 h-7 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : (
+                <ShieldAlert size={28} className="group-hover:scale-110 transition-transform" />
+              )}
               <div className="absolute inset-0 bg-white/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <span className="text-[10px] tracking-[0.2em] font-bold">BROADCAST EMERGENCY</span>
+            <span className="text-[10px] tracking-[0.2em] font-bold">
+              {isEncrypting ? "ENCRYPTING..." : "BROADCAST EMERGENCY"}
+            </span>
+          </button>
+          <button
+            onClick={() => {
+              clearMessages();
+              setLogs([]);
+              addLog('Node records purged.', 'alert');
+            }}
+            className="w-full bg-white/5 hover:bg-white/10 text-white/40 hover:text-red-400 font-mono text-[9px] py-2 rounded-lg transition-all border border-white/5"
+          >
+            PURGE LOCAL DATA
           </button>
         </div>
       </aside>
@@ -747,6 +791,54 @@ class BluetoothMeshManager(private val context: Context) {
 
           <div className="w-full h-full relative overflow-hidden">
             <svg ref={mapRef} className="w-full h-full cursor-crosshair" />
+
+            {/* Selected Node Details Overlay */}
+            <AnimatePresence>
+              {selectedNode && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="absolute top-24 right-6 w-64 bg-[#121214]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl z-50 pointer-events-auto"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-[10px] font-mono font-black text-white uppercase tracking-widest">{selectedNode.name}</span>
+                    </div>
+                    <button onClick={() => setSelectedNodeId(null)} className="text-white/20 hover:text-white transition-colors">
+                      <Zap size={10} className="rotate-45" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <span className="text-[8px] font-mono text-white/20 uppercase tracking-[0.2em] block mb-2">Routing Intelligence</span>
+                      {Object.entries(selectedNode.probs).length === 0 ? (
+                        <p className="text-[9px] font-mono text-white/40 italic">No encounter history established.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
+                          {Object.entries(selectedNode.probs).map(([id, prob]) => {
+                            const nodeName = nodes.find(n => n.id === id)?.name || id.slice(0, 4);
+                            return (
+                              <div key={id} className="space-y-1">
+                                <div className="flex justify-between text-[8px] font-mono">
+                                  <span className="text-white/60">{nodeName}</span>
+                                  <span className="text-emerald-500">{(prob as number * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="h-0.5 bg-white/5 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500/50" style={{ width: `${(prob as number * 100)}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* HUD Overlays */}
             <div className="absolute inset-0 pointer-events-none border-[1px] border-white/5 m-4 rounded-3xl overflow-hidden">
@@ -793,7 +885,7 @@ class BluetoothMeshManager(private val context: Context) {
             <div className="flex items-center gap-3">
               <span className="text-emerald-500">{messages.length} DATA PACKETS</span>
               <div className="w-px h-3 bg-white/10" />
-              <button className="hover:text-white transition-colors">CLEAR</button>
+              <button onClick={clearMessages} className="hover:text-white transition-colors">CLEAR</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
