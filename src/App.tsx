@@ -68,7 +68,7 @@ export default function App() {
   const [isLiveLocation, setIsLiveLocation] = useState(false);
   const [realCoords, setRealCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTab, setActiveTab] = useState<'map' | 'messages' | 'system'>('map');
-  const [p2pMode, setP2pMode] = useState<'cloudoffline' | 'bluetooth'>('cloudoffline');
+  const [p2pMode, setP2pMode] = useState<'bluetooth' | 'wifi'>('bluetooth');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
 
@@ -352,19 +352,41 @@ class BluetoothMeshManager(private val context: Context) {
   };
 
   useEffect(() => {
-    if (!mapRef.current || !nodes.length) return;
+    if (!mapRef.current) return;
     const svg = d3.select(mapRef.current);
     svg.selectAll("*").remove();
     const width = mapRef.current.clientWidth;
     const height = mapRef.current.clientHeight;
 
-    const gridSize = 40;
-    for (let x = 0; x <= width; x += gridSize) {
-      svg.append("line").attr("x1", x).attr("y1", 0).attr("x2", x).attr("y2", height).attr("stroke", "#2A2A2A");
+    // Tactical Glow Grid dots
+    const dotSpacing = 30;
+    for (let x = 0; x <= width; x += dotSpacing) {
+      for (let y = 0; y <= height; y += dotSpacing) {
+        svg.append("circle")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", 0.5)
+          .attr("fill", "#00FF41")
+          .attr("opacity", 0.15);
+      }
     }
-    for (let y = 0; y <= height; y += gridSize) {
-      svg.append("line").attr("x1", 0).attr("y1", y).attr("x2", width).attr("y2", y).attr("stroke", "#2A2A2A");
-    }
+
+    // Scanning Radar Sweep
+    const sweep = svg.append("line")
+      .attr("x1", width / 2)
+      .attr("y1", height / 2)
+      .attr("x2", width)
+      .attr("y2", height / 2)
+      .attr("stroke", "rgba(0, 255, 65, 0.4)")
+      .attr("stroke-width", 1.5)
+      .attr("class", "radar-sweep");
+
+    // Radar Center
+    svg.append("circle")
+      .attr("cx", width / 2)
+      .attr("cy", height / 2)
+      .attr("r", 2)
+      .attr("fill", "#00FF41");
 
     nodes.forEach(node => {
       const isMe = node.id === myId;
@@ -372,36 +394,127 @@ class BluetoothMeshManager(private val context: Context) {
       const y = (node.y / 100) * height;
       const g = svg.append("g").attr("transform", `translate(${x}, ${y})`);
 
-      if (isMe && p2pMode === 'bluetooth') {
-        // Signal Range Circle
+      if (isMe) {
+        // Range Indicator
         svg.append("circle")
           .attr("cx", x)
           .attr("cy", y)
           .attr("r", (30 / 100) * width)
-          .attr("fill", "rgba(59, 130, 246, 0.05)")
-          .attr("stroke", "rgba(59, 130, 246, 0.2)")
-          .attr("stroke-dasharray", "4,4")
+          .attr("fill", p2pMode === 'bluetooth' ? "rgba(59, 130, 246, 0.03)" : "rgba(0, 255, 65, 0.03)")
+          .attr("stroke", p2pMode === 'bluetooth' ? "rgba(59, 130, 246, 0.2)" : "rgba(0, 255, 65, 0.2)")
+          .attr("stroke-dasharray", "2,2")
           .lower();
       }
 
-      g.append("circle").attr("r", isMe ? 8 : 6).attr("fill", isMe ? "#00FF41" : "#E4E3E0");
-      if (isMe) g.append("circle").attr("r", 15).attr("fill", "none").attr("stroke", "#00FF41").attr("opacity", 0.3).attr("class", "animate-ping");
-      g.append("text").text(node.name).attr("dy", -12).attr("text-anchor", "middle").attr("fill", "#E4E3E0").attr("font-size", "10px").attr("font-family", "JetBrains Mono");
+      // Glowing Node
+      const nodeColor = isMe ? "#00FF41" : (p2pMode === 'bluetooth' ? "#3B82F6" : "#00FF41");
+
+      g.append("circle")
+        .attr("r", isMe ? 6 : 4)
+        .attr("fill", nodeColor)
+        .attr("class", isMe ? "shadow-[0_0_10px_#00FF41]" : "");
+
+      if (isMe) {
+        g.append("circle")
+          .attr("r", 12)
+          .attr("fill", "none")
+          .attr("stroke", nodeColor)
+          .attr("opacity", 0.5)
+          .attr("class", "animate-ping");
+      }
+
+      // Name Tag
+      const labelContainer = g.append("g").attr("transform", "translate(0, 15)");
+
+      labelContainer.append("text")
+        .text(node.name.toUpperCase())
+        .attr("text-anchor", "middle")
+        .attr("fill", "#E4E3E0")
+        .attr("font-size", "8px")
+        .attr("font-family", "JetBrains Mono")
+        .attr("font-weight", "bold");
+
+      if (isMe) {
+        labelContainer.append("text")
+          .text("YOU")
+          .attr("dy", 10)
+          .attr("text-anchor", "middle")
+          .attr("fill", "#00FF41")
+          .attr("font-size", "7px")
+          .attr("font-family", "JetBrains Mono");
+      }
     });
-  }, [nodes, myId]);
+
+    // Add tactical corner brackets
+    const pad = 10;
+    const len = 15;
+    const corners = [
+      `M ${pad},${pad + len} V ${pad} H ${pad + len}`,
+      `M ${width - pad},${pad + len} V ${pad} H ${width - pad - len}`,
+      `M ${pad},${height - pad - len} V ${height - pad} H ${pad + len}`,
+      `M ${width - pad},${height - pad - len} V ${height - pad} H ${width - pad - len}`
+    ];
+
+    corners.forEach(d => {
+      svg.append("path")
+        .attr("d", d)
+        .attr("fill", "none")
+        .attr("stroke", "#2A2A2A")
+        .attr("stroke-width", 1);
+    });
+
+  }, [nodes, myId, p2pMode]);
 
   if (!isRegistered) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#141414] p-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md border border-[#2A2A2A] p-8 bg-[#1A1A1A] rounded-2xl shadow-2xl">
-          <div className="text-center space-y-2">
-            <Radio className="w-12 h-12 text-[#00FF41] mx-auto mb-4" />
-            <h1 className="text-3xl font-serif italic text-[#E4E3E0]">Resilient Comm</h1>
-            <p className="text-xs font-mono text-white/40 uppercase tracking-widest">Emergency Node Registration</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#141414] p-6 relative overflow-hidden">
+        <div className="scanline" />
+        <div className="absolute inset-0 opacity-10 data-grid" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md border border-[#2A2A2A] bg-[#1A1A1A]/80 backdrop-blur-xl rounded-3xl p-10 shadow-[0_0_100px_rgba(0,255,65,0.05)] relative z-10"
+        >
+          {/* Tactical Corners */}
+          <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-[#00FF41]/30 rounded-tl-lg" />
+          <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-[#00FF41]/30 rounded-br-lg" />
+
+          <div className="text-center space-y-4">
+            <div className="relative inline-block">
+              <div className="absolute inset-0 bg-[#00FF41]/20 blur-2xl rounded-full animate-pulse" />
+              <Radio className="w-16 h-16 text-[#00FF41] relative z-10 mx-auto" strokeWidth={1.5} />
+            </div>
+            <div>
+              <h1 className="text-4xl font-serif italic text-[#E4E3E0] tracking-tight">SOS MESH</h1>
+              <p className="text-[10px] font-mono text-[#00FF41] uppercase tracking-[0.3em] font-bold mt-2">Tactical Node Initialization</p>
+            </div>
           </div>
-          <div className="space-y-4 mt-8">
-            <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Responder Name..." className="w-full bg-black border border-[#2A2A2A] p-3 rounded-lg text-sm font-mono focus:border-[#00FF41] outline-none transition-colors" />
-            <button onClick={() => userName && setIsRegistered(true)} className="w-full bg-[#00FF41] text-black font-mono font-bold py-3 rounded-lg hover:bg-[#00CC33] flex items-center justify-center gap-2">INITIALIZE NODE <ChevronRight size={16} /></button>
+
+          <div className="space-y-6 mt-12">
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-white/30 uppercase ml-1">Responder Identity</label>
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && userName && setIsRegistered(true)}
+                placeholder="Enter unit name..."
+                className="w-full bg-black/60 border border-[#2A2A2A] p-4 rounded-xl text-sm font-mono text-[#00FF41] focus:border-[#00FF41]/50 focus:ring-1 focus:ring-[#00FF41]/20 outline-none transition-all placeholder:text-white/10"
+              />
+            </div>
+
+            <button
+              onClick={() => userName && setIsRegistered(true)}
+              className="w-full bg-[#00FF41] text-black font-mono font-bold py-4 rounded-xl hover:bg-[#00CC33] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(0,255,65,0.2)]"
+            >
+              AUTH & JOIN MESH <ChevronRight size={18} />
+            </button>
+
+            <p className="text-[9px] font-mono text-white/20 text-center uppercase tracking-widest leading-relaxed">
+              Standard encryption active <br />
+              P2P Protocol: IEEE 802.15.4
+            </p>
           </div>
         </motion.div>
       </div>
@@ -428,7 +541,7 @@ class BluetoothMeshManager(private val context: Context) {
           <div className="space-y-3">
             <label className="text-[10px] font-mono text-white/40">SIGNAL MODE</label>
             <div className="flex gap-2">
-              <button onClick={() => setP2pMode('cloudoffline')} className={cn("flex-1 py-3 rounded border text-[9px] font-mono", p2pMode === 'cloudoffline' ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" : "bg-black/40 border-[#2A2A2A] text-white/30")}>INTERNET/MESH</button>
+              <button onClick={() => setP2pMode('wifi')} className={cn("flex-1 py-3 rounded border text-[9px] font-mono", p2pMode === 'wifi' ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" : "bg-black/40 border-[#2A2A2A] text-white/30")}>LOCAL WIFI</button>
               <button onClick={() => setP2pMode('bluetooth')} className={cn("flex-1 py-3 rounded border text-[9px] font-mono", p2pMode === 'bluetooth' ? "bg-blue-500/10 border-blue-500 text-blue-500" : "bg-black/40 border-[#2A2A2A] text-white/30")}>BLUETOOTH</button>
             </div>
           </div>
@@ -460,21 +573,37 @@ class BluetoothMeshManager(private val context: Context) {
       <main className={cn("md:col-span-6 relative bg-black data-grid flex flex-col", activeTab === 'map' ? 'flex flex-1 pb-16 md:pb-0' : (activeTab === 'messages' ? 'flex flex-1 pb-16 md:pb-0' : 'hidden md:flex'))}>
         <div className={cn("flex-1 relative", activeTab === 'map' ? 'block' : 'hidden md:block')}>
           <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
-            <div className="bg-[#1A1A1A]/80 backdrop-blur border border-[#2A2A2A] px-4 py-2 rounded-full flex items-center gap-3">
+            <div className="bg-[#1A1A1A]/90 backdrop-blur-md border border-[#00FF41]/20 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_20px_rgba(0,255,65,0.1)]">
               <div className="w-2 h-2 rounded-full bg-[#00FF41] animate-pulse" />
-              <span className="text-[10px] font-mono text-white/60 tracking-widest uppercase">TOPOLOGY Map</span>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-mono text-white/40 leading-none">STATUS</span>
+                <span className="text-[10px] font-mono text-[#00FF41] tracking-widest uppercase font-bold">TACTICAL MESH ACTIVE</span>
+              </div>
             </div>
           </div>
-          <div className="w-full h-full relative">
+          <div className="w-full h-full relative overflow-hidden">
+            <div className="scanline" />
             <svg ref={mapRef} className="w-full h-full" />
+            <div className="md:hidden absolute bottom-24 left-6 z-30 flex flex-col gap-2">
+              <div className="bg-black/80 backdrop-blur-md border border-[#2A2A2A] p-2 rounded-lg flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#00FF41]" />
+                <span className="text-[8px] font-mono text-white/60 uppercase">Node ID: {myId?.slice(0, 8)}</span>
+              </div>
+              <div className="bg-black/80 backdrop-blur-md border border-[#2A2A2A] p-2 rounded-lg flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <span className="text-[8px] font-mono text-white/60 uppercase">Mode: {p2pMode.toUpperCase()}</span>
+              </div>
+            </div>
+
             {/* Big SOS button for mobile - overlaid on map */}
-            <div className="md:hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+            <div className="md:hidden absolute bottom-8 left-1/2 -translate-x-1/2 z-30">
               <button
                 onClick={triggerSOS}
-                className="flex flex-col items-center justify-center w-24 h-24 rounded-full bg-red-600 hover:bg-red-700 active:scale-95 shadow-[0_0_40px_rgba(220,38,38,0.6)] border-4 border-red-400 transition-all"
+                className="flex flex-col items-center justify-center w-28 h-28 rounded-full bg-red-600 hover:bg-red-700 active:scale-90 shadow-[0_0_50px_rgba(220,38,38,0.7)] border-[6px] border-black ring-2 ring-red-500 transition-all group"
               >
-                <ShieldAlert size={32} className="text-white" />
-                <span className="text-white font-black text-xs tracking-widest mt-1">SOS</span>
+                <div className="absolute inset-0 rounded-full border-2 border-white/20 animate-ping pointer-events-none" />
+                <ShieldAlert size={36} className="text-white mb-1" />
+                <span className="text-white font-black text-xs tracking-[0.2em]">TRIGGER</span>
               </button>
             </div>
           </div>
@@ -551,9 +680,24 @@ function StatCard({ icon, label, value, subValue }: { icon: React.ReactNode, lab
 
 function MetricBar({ label, value, color }: { label: string, value: number, color: string }) {
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-[10px] font-mono uppercase"><span className="text-white/40">{label}</span><span style={{ color }}>{value}%</span></div>
-      <div className="h-1 bg-black rounded-full overflow-hidden"><motion.div initial={{ width: 0 }} animate={{ width: `${value}%` }} className="h-full" style={{ backgroundColor: color }} /></div>
+    <div className="space-y-2">
+      <div className="flex justify-between items-end text-[9px] font-mono tracking-tighter uppercase">
+        <span className="text-white/30">{label}</span>
+        <span style={{ color }} className="font-bold">{value}%</span>
+      </div>
+      <div className="h-1 bg-white/5 rounded-none overflow-hidden flex gap-1">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex-1 h-full transition-all duration-1000"
+            style={{
+              backgroundColor: i / 20 * 100 < value ? color : 'transparent',
+              opacity: i / 20 * 100 < value ? 0.6 : 0.1,
+              border: `1px solid ${i / 20 * 100 < value ? color : 'white'}`
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
