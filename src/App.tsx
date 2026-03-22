@@ -309,17 +309,26 @@ class BluetoothMeshManager(private val context: Context) {
       const gainNode = audioCtx.createGain();
 
       oscillator.type = 'sawtooth';
-      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-      oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 1);
+      
+      // Pulsing siren effect (oscillating frequency)
+      const now = audioCtx.currentTime;
+      oscillator.frequency.setValueAtTime(880, now);
+      oscillator.frequency.linearRampToValueAtTime(440, now + 0.5);
+      oscillator.frequency.linearRampToValueAtTime(880, now + 1.0);
+      oscillator.frequency.linearRampToValueAtTime(440, now + 1.5);
+      oscillator.frequency.linearRampToValueAtTime(880, now + 2.0);
+      oscillator.frequency.linearRampToValueAtTime(440, now + 2.5);
+      oscillator.frequency.linearRampToValueAtTime(880, now + 3.0);
 
-      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+      // Volume: 0.5 is significantly louder than 0.1
+      gainNode.gain.setValueAtTime(0.5, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, now + 3.0);
 
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
 
       oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 1);
+      oscillator.stop(now + 3.0);
     } catch (err) {
       console.warn("Audio context failed to start:", err);
     }
@@ -335,7 +344,8 @@ class BluetoothMeshManager(private val context: Context) {
     // Feedback: Sound and Vibration
     triggerAlertSound();
     if (navigator.vibrate) {
-      navigator.vibrate([300, 100, 300, 100, 300]);
+      // Long, repetitive vibration pattern
+      navigator.vibrate([500, 200, 500, 200, 500, 200, 500, 200, 500]);
     }
 
     if (msg.ttl <= 0) return;
