@@ -73,6 +73,8 @@ export default function App() {
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isEncrypting, setIsEncrypting] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isMaster, setIsMaster] = useState(false);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId), [nodes, selectedNodeId]);
 
@@ -361,6 +363,57 @@ class BluetoothMeshManager(private val context: Context) {
       addLog('SOS Broadcast sent to mesh!', 'alert');
     } else {
       addLog('SOS Saved Offline. Waiting for peers...', 'success');
+    }
+  };
+
+  const scanNearbyBLE = async () => {
+    if (!navigator.bluetooth) {
+      addLog("Bluetooth API not supported in this browser.", "alert");
+      return;
+    }
+    setIsScanning(true);
+    addLog("Scanning for BLE SOS beacons...", "info");
+    try {
+      // Look for any devices that advertise a common SOS service UUID
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['battery_service', 'heart_rate'] // Standard services for demo, would be custom in production
+      });
+      addLog(`Found device: ${device.name || "Unknown Unit"}`, "success");
+      setNodes(prev => {
+        if (prev.find(n => n.id === device.id)) return prev;
+        return [...prev, {
+          id: device.id,
+          name: device.name || "Remote BLE Unit",
+          x: Math.random() * 100,
+          y: Math.random() * 100,
+          probs: {}
+        }];
+      });
+    } catch (err: any) {
+      if (err.name !== 'NotFoundError' && err.name !== 'AbortError') {
+        addLog(`BLE Scan Error: ${err.message}`, "alert");
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const scanLocalNetwork = async () => {
+    addLog("Surveying local mesh for coordinators...", "info");
+    const subnet = "192.168.1"; // Default common subnet
+    for (let i = 1; i < 255; i++) {
+      const target = `${subnet}.${i}`;
+      const url = `ws://${target}:3000/ws`;
+      try {
+        const testSocket = new WebSocket(url);
+        const timeout = setTimeout(() => testSocket.close(), 100);
+        testSocket.onopen = () => {
+          clearTimeout(timeout);
+          addLog(`Mesh coordinator found at ${target}`, "success");
+          window.location.host = `${target}:3000`; // Auto-reload to connect to that IP
+        };
+      } catch (e) {}
     }
   };
 
@@ -666,6 +719,34 @@ class BluetoothMeshManager(private val context: Context) {
               value={messages.length > 0 ? messages[0].hopCount.toString() : "0"}
               subValue="LATENCY: LOW"
             />
+          </div>
+
+          <div className="space-y-4 border-y border-white/5 py-6">
+            <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-white/40 uppercase">
+              <div className="flex items-center gap-2">
+                <Wifi size={12} className="text-emerald-500" />
+                TACTICAL SURVEY
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={scanNearbyBLE}
+                disabled={isScanning}
+                className={cn(
+                  "py-3 rounded-xl border text-[9px] font-mono transition-all",
+                  isScanning ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" : "bg-white/5 border-white/5 text-white/50 hover:bg-white/10"
+                )}
+              >
+                {isScanning ? "SCANNING..." : "BLE BEACON"}
+              </button>
+              <button
+                onClick={scanLocalNetwork}
+                className="py-3 rounded-xl border border-white/5 bg-white/5 text-[9px] font-mono text-white/50 hover:bg-white/10 transition-all"
+              >
+                SUBNET SCAN
+              </button>
+            </div>
+            <p className="text-[8px] font-mono text-white/20 uppercase text-center">Use Subnet Scan if on Wi-Fi Hotspot</p>
           </div>
 
           <div className="space-y-4">
