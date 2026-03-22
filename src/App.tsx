@@ -68,7 +68,7 @@ export default function App() {
   const [isLiveLocation, setIsLiveLocation] = useState(false);
   const [realCoords, setRealCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTab, setActiveTab] = useState<'map' | 'messages' | 'system'>('map');
-  const [p2pMode, setP2pMode] = useState<'bluetooth' | 'wifi'>('bluetooth');
+  const [p2pMode] = useState<'wifi'>('wifi');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -284,23 +284,8 @@ class BluetoothMeshManager(private val context: Context) {
   }, [isLiveLocation]);
 
   useEffect(() => {
-    if (p2pMode === 'bluetooth') {
-      const timer = setTimeout(() => {
-        addLog('Bluetooth Scan: Local peer detected via BLE', 'info');
-        setNodes(prev => {
-          if (prev.find(n => n.id === 'ble-peer-1')) return prev;
-          return [...prev, {
-            id: 'ble-peer-1',
-            name: 'Nearby Responder',
-            x: myPos.x + 10,
-            y: myPos.y - 10,
-            probs: {}
-          }];
-        });
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [p2pMode]);
+    // Bluetooth simulation removed as requested, now always using Local WiFi Mesh
+  }, []);
 
   const triggerAlertSound = () => {
     try {
@@ -797,33 +782,16 @@ class BluetoothMeshManager(private val context: Context) {
             <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-white/30 uppercase">
               <div className="flex items-center gap-2">
                 <Activity size={12} />
-                SIGNAL MODE
+                MESH STATUS
               </div>
-              <span className="text-emerald-500/50">ENCRYPTED</span>
+              <span className="text-emerald-500/50">LOCAL LINK ACTIVE</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setP2pMode('wifi')}
-                className={cn(
-                  "py-3 rounded-xl border text-[10px] font-mono font-bold transition-all",
-                  p2pMode === 'wifi'
-                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
-                    : "bg-black/20 border-white/5 text-white/30 hover:border-white/20"
-                )}
-              >
-                M-WIFI
-              </button>
-              <button
-                onClick={() => setP2pMode('bluetooth')}
-                className={cn(
-                  "py-3 rounded-xl border text-[10px] font-mono font-bold transition-all",
-                  p2pMode === 'bluetooth'
-                    ? "bg-blue-500/10 border-blue-500/50 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
-                    : "bg-black/20 border-white/5 text-white/30 hover:border-white/20"
-                )}
-              >
-                BT-LE
-              </button>
+            <div className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-xl flex items-center justify-between">
+              <span className="text-[10px] font-mono text-emerald-400 font-bold uppercase tracking-wider">Protocol: M-WIFI</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[9px] font-mono text-white/40 uppercase">Encrypted</span>
+              </div>
             </div>
           </div>
 
