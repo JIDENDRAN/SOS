@@ -302,12 +302,41 @@ class BluetoothMeshManager(private val context: Context) {
     }
   }, [p2pMode]);
 
+  const triggerAlertSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 1);
+
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 1);
+    } catch (err) {
+      console.warn("Audio context failed to start:", err);
+    }
+  };
+
   const handleIncomingSOS = (msg: SOSMessage, fromId: string) => {
     if (seenMessages.has(msg.messageId)) return;
     seenMessages.add(msg.messageId);
     setMessages(prev => [msg, ...prev]);
     setActiveEmergency(msg);
     addLog(`SOS from ${msg.senderName} (Hop: ${msg.hopCount})`, 'alert');
+
+    // Feedback: Sound and Vibration
+    triggerAlertSound();
+    if (navigator.vibrate) {
+      navigator.vibrate([300, 100, 300, 100, 300]);
+    }
 
     if (msg.ttl <= 0) return;
 
@@ -1095,8 +1124,11 @@ class BluetoothMeshManager(private val context: Context) {
               </div>
 
               <button
-                onClick={() => setActiveEmergency(null)}
-                className="w-full bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveEmergency(null);
+                }}
+                className="w-full bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase relative z-[300]"
               >
                 ACKNOWLEDGE & DISMISS
               </button>
