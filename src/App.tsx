@@ -358,21 +358,17 @@ class BluetoothMeshManager(private val context: Context) {
     seenMessages.add(msg.messageId);
     setMessages(prev => [msg, ...prev]);
     
-    // Only trigger the full-screen alert if it came from someone else
-    if (msg.senderId !== myId) {
-      setActiveEmergency(msg);
-      addLog(`SOS from ${msg.senderName} (Hop: ${msg.hopCount})`, 'alert');
-      
-      // Feedback: Sound and Vibration
-      triggerAlertSound();
-      if (navigator.vibrate) {
-        navigator.vibrate([
-          500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 
-          500, 200, 500, 200, 500, 200, 500, 200, 500
-        ]);
-      }
-    } else {
-      addLog(`Local SOS broadcast initiated...`, 'success');
+    // Trigger the full-screen alert for everyone (including sender)
+    setActiveEmergency(msg);
+    addLog(`SOS Alert: ${msg.senderName} is broadcasting`, 'alert');
+    
+    // Feedback: Sound and Vibration
+    triggerAlertSound();
+    if (navigator.vibrate) {
+      navigator.vibrate([
+        500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 
+        500, 200, 500, 200, 500, 200, 500, 200, 500
+      ]);
     }
 
     if (msg.ttl <= 0) return;
