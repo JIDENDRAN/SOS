@@ -1025,8 +1025,11 @@ class BluetoothMeshManager(private val context: Context) {
                     className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-emerald-500/50 transition-all font-mono"
                   />
                   <button
-                    onClick={triggerSOS}
-                    className="w-full bg-emerald-500 text-black font-mono font-bold py-3 rounded-xl text-[10px] uppercase tracking-tighter"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      triggerSOS();
+                    }}
+                    className="w-full bg-emerald-500 text-black font-mono font-bold py-3 rounded-xl text-[10px] uppercase tracking-tighter cursor-pointer pointer-events-auto"
                   >
                     CONFIRM BROADCAST
                   </button>
@@ -1188,16 +1191,22 @@ class BluetoothMeshManager(private val context: Context) {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 relative z-[300]">
                 <button
-                  onClick={() => setActiveEmergency(null)}
-                  className="flex-1 bg-white/5 text-white/40 font-mono font-black py-5 rounded-2xl hover:bg-white/10 transition-all text-xs tracking-widest uppercase"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveEmergency(null);
+                  }}
+                  className="flex-1 bg-white/5 text-white/40 font-mono font-black py-5 rounded-2xl hover:bg-white/10 transition-all text-xs tracking-widest uppercase cursor-pointer"
                 >
                   DISMISS
                 </button>
                 <button
-                  onClick={() => handleResponderReply(activeEmergency)}
-                  className="flex-[2] bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase relative z-[300]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleResponderReply(activeEmergency);
+                  }}
+                  className="flex-[2] bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase cursor-pointer relative z-[300]"
                 >
                   SEND UPDATE & ACK
                 </button>
