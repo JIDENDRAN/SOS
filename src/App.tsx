@@ -357,17 +357,22 @@ class BluetoothMeshManager(private val context: Context) {
     if (seenMessages.has(msg.messageId)) return;
     seenMessages.add(msg.messageId);
     setMessages(prev => [msg, ...prev]);
-    setActiveEmergency(msg);
-    addLog(`SOS from ${msg.senderName} (Hop: ${msg.hopCount})`, 'alert');
-
-    // Feedback: Sound and Vibration
-    triggerAlertSound();
-    if (navigator.vibrate) {
-      // 6 seconds of intense vibration pulses
-      navigator.vibrate([
-        500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 
-        500, 200, 500, 200, 500, 200, 500, 200, 500
-      ]);
+    
+    // Only trigger the full-screen alert if it came from someone else
+    if (msg.senderId !== myId) {
+      setActiveEmergency(msg);
+      addLog(`SOS from ${msg.senderName} (Hop: ${msg.hopCount})`, 'alert');
+      
+      // Feedback: Sound and Vibration
+      triggerAlertSound();
+      if (navigator.vibrate) {
+        navigator.vibrate([
+          500, 200, 500, 200, 500, 200, 500, 200, 500, 200, 
+          500, 200, 500, 200, 500, 200, 500, 200, 500
+        ]);
+      }
+    } else {
+      addLog(`Local SOS broadcast initiated...`, 'success');
     }
 
     if (msg.ttl <= 0) return;
@@ -1173,44 +1178,17 @@ class BluetoothMeshManager(private val context: Context) {
                 </div>
                 <div className="h-px bg-white/5" />
                 <p className="text-xl text-white font-medium italic">"{activeEmergency.content}"</p>
-                {activeEmergency.responderMessage && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
-                    <p className="text-[10px] font-mono text-emerald-400 uppercase mb-1">Update from {activeEmergency.responderName}:</p>
-                    <p className="text-sm text-white italic">"{activeEmergency.responderMessage}"</p>
-                  </div>
-                )}
-                <div className="space-y-2 pt-2">
-                  <label className="text-[9px] font-mono text-white/20 uppercase block">Status Update for Sender:</label>
-                  <input
-                    type="text"
-                    value={responderMessage}
-                    onChange={(e) => setResponderMessage(e.target.value)}
-                    placeholder="E.g., Assistance arrived / ETA 2 mins"
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-red-500/50 transition-all outline-none"
-                  />
-                </div>
               </div>
 
-              <div className="flex gap-3 relative z-[300]">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveEmergency(null);
-                  }}
-                  className="flex-1 bg-white/5 text-white/40 font-mono font-black py-5 rounded-2xl hover:bg-white/10 transition-all text-xs tracking-widest uppercase cursor-pointer"
-                >
-                  DISMISS
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleResponderReply(activeEmergency);
-                  }}
-                  className="flex-[2] bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase cursor-pointer relative z-[300]"
-                >
-                  SEND UPDATE & ACK
-                </button>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveEmergency(null);
+                }}
+                className="w-full bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase cursor-pointer relative z-[300]"
+              >
+                ACKNOWLEDGE & DISMISS
+              </button>
             </motion.div>
           </motion.div>
         )}
