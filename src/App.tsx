@@ -31,6 +31,8 @@ interface SOSMessage {
   hopCount: number;
   content: string;
   deliveryProbability: number;
+  responderName?: string;
+  responderMessage?: string;
   lat?: number;
   lng?: number;
 }
@@ -76,6 +78,9 @@ export default function App() {
   const [isEncrypting, setIsEncrypting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isMaster, setIsMaster] = useState(false);
+  const [isDraftingSOS, setIsDraftingSOS] = useState(false);
+  const [draftContent, setDraftContent] = useState('MEDICAL EMERGENCY AT COORDINATES');
+  const [responderMessage, setResponderMessage] = useState('');
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId), [nodes, selectedNodeId]);
 
@@ -393,36 +398,48 @@ class BluetoothMeshManager(private val context: Context) {
   };
 
   const triggerSOS = async () => {
-    const rawContent = isLiveLocation && realCoords
-      ? `EMERGENCY at [${realCoords.lat.toFixed(6)}, ${realCoords.lng.toFixed(6)}]`
-      : "EMERGENCY: Assistance required.";
-
-    const content = await simulateEncryption(rawContent);
-
+    if (!isDraftingSOS) {
+      setIsDraftingSOS(true);
+      return;
+    }
+    
+    setIsDraftingSOS(false);
     const msg: SOSMessage = {
       messageId: Math.random().toString(36).substring(7),
-      senderId: myId || 'unknown',
-      senderName: userName,
+      senderId: myId || 'anon',
+      senderName: userName || 'Mesh Unit',
       timestamp: Date.now(),
       ttl: ttl,
       hopCount: 0,
-      content: content,
-      deliveryProbability: 1.0,
+      content: draftContent,
+      deliveryProbability: 100,
       lat: realCoords?.lat,
       lng: realCoords?.lng
     };
 
-    seenMessages.add(msg.messageId);
+    addLog('Synthesizing high-priority signal...', 'info');
+    await simulateEncryption(draftContent);
+    addLog('Signal broadcasting via Local Subnet + BLE Advertising', 'success');
+    
     setMessages(prev => [msg, ...prev]);
     relayMessage(msg);
+  };
 
-    if (p2pMode === 'bluetooth') {
-      addLog('BLE: Emergency signal broadcasted via Bluetooth LE', 'alert');
-    } else if (ws.current?.readyState === WebSocket.OPEN) {
-      addLog('SOS Broadcast sent to mesh!', 'alert');
-    } else {
-      addLog('SOS Saved Offline. Waiting for peers...', 'success');
-    }
+  const handleResponderReply = (originalMsg: SOSMessage) => {
+    if (!responderMessage) return;
+    
+    const reply: SOSMessage = {
+      ...originalMsg,
+      messageId: originalMsg.messageId + '-reply',
+      responderName: userName,
+      responderMessage: responderMessage,
+      content: `REPLY from ${userName}: ${responderMessage}`
+    };
+    
+    addLog(`Sending status update to ${originalMsg.senderName}`, 'success');
+    relayMessage(reply);
+    setActiveEmergency(null);
+    setResponderMessage('');
   };
 
   const scanNearbyBLE = async () => {
@@ -780,34 +797,6 @@ class BluetoothMeshManager(private val context: Context) {
               subValue="LATENCY: LOW"
             />
           </div>
-
-          <div className="space-y-4 border-y border-white/5 py-6">
-            <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-white/40 uppercase">
-              <div className="flex items-center gap-2">
-                <Wifi size={12} className="text-emerald-500" />
-                TACTICAL SURVEY
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={scanNearbyBLE}
-                disabled={isScanning}
-                className={cn(
-                  "py-3 rounded-xl border text-[9px] font-mono transition-all",
-                  isScanning ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" : "bg-white/5 border-white/5 text-white/50 hover:bg-white/10"
-                )}
-              >
-                {isScanning ? "SCANNING..." : "BLE BEACON"}
-              </button>
-              <button
-                onClick={scanLocalNetwork}
-                className="py-3 rounded-xl border border-white/5 bg-white/5 text-[9px] font-mono text-white/50 hover:bg-white/10 transition-all"
-              >
-                SUBNET SCAN
-              </button>
-            </div>
-            <p className="text-[8px] font-mono text-white/20 uppercase text-center">Use Subnet Scan if on Wi-Fi Hotspot</p>
-          </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-white/30 uppercase">
               <div className="flex items-center gap-2">
@@ -1006,13 +995,43 @@ class BluetoothMeshManager(private val context: Context) {
             <div className="md:hidden absolute bottom-8 left-1/2 -translate-x-1/2 z-[60]">
               <button
                 onClick={triggerSOS}
-                className="relative flex flex-col items-center justify-center w-28 h-28 rounded-full bg-red-600 active:scale-90 transition-all group overflow-hidden"
+                className={cn(
+                  "relative flex flex-col items-center justify-center w-28 h-28 rounded-full transition-all group overflow-hidden",
+                  isDraftingSOS ? "bg-emerald-600 scale-110" : "bg-red-600 active:scale-90"
+                )}
               >
                 <div className="absolute inset-0 bg-white/10 opacity-0 group-active:opacity-100 transition-opacity" />
-                <div className="absolute inset-0 rounded-full border-4 border-red-500 animate-[ping_2s_infinite]" />
-                <ShieldAlert size={36} className="text-white mb-1 relative z-10" />
-                <span className="text-white font-black text-[10px] tracking-[0.2em] relative z-10">SOS</span>
+                {isDraftingSOS ? (
+                  <Zap size={36} className="text-white relative z-10" />
+                ) : (
+                  <>
+                    <div className="absolute inset-0 rounded-full border-4 border-red-500 animate-[ping_2s_infinite]" />
+                    <ShieldAlert size={36} className="text-white mb-1 relative z-10" />
+                    <span className="text-white font-black text-[10px] tracking-[0.2em] relative z-10">SOS</span>
+                  </>
+                )}
               </button>
+
+              {isDraftingSOS && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="absolute bottom-32 left-1/2 -translate-x-1/2 w-64 bg-black/95 backdrop-blur-2xl border border-emerald-500/30 p-4 rounded-2xl shadow-2xl z-[100] space-y-3"
+                >
+                  <span className="text-[10px] font-mono text-emerald-500 font-bold uppercase tracking-widest block">Broadcast Detail</span>
+                  <textarea
+                    value={draftContent}
+                    onChange={(e) => setDraftContent(e.target.value)}
+                    className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-emerald-500/50 transition-all font-mono"
+                  />
+                  <button
+                    onClick={triggerSOS}
+                    className="w-full bg-emerald-500 text-black font-mono font-bold py-3 rounded-xl text-[10px] uppercase tracking-tighter"
+                  >
+                    CONFIRM BROADCAST
+                  </button>
+                </motion.div>
+              )}
             </div>
           </div>
         </div>
@@ -1144,24 +1163,45 @@ class BluetoothMeshManager(private val context: Context) {
                 <p className="text-red-400/80 font-mono text-[10px] tracking-[0.3em] font-bold uppercase">CRITICAL SIGNAL DETECTED</p>
               </div>
 
-              <div className="bg-white/[0.03] border border-white/5 p-6 rounded-2xl space-y-3">
+              <div className="bg-white/[0.03] border border-white/5 p-6 rounded-2xl space-y-4">
                 <div className="flex items-center justify-between text-[10px] font-mono text-white/30 uppercase tracking-widest">
                   <span>SENDER: {activeEmergency.senderName}</span>
                   <span>ID: {activeEmergency.senderId.slice(0, 8)}</span>
                 </div>
                 <div className="h-px bg-white/5" />
                 <p className="text-xl text-white font-medium italic">"{activeEmergency.content}"</p>
+                {activeEmergency.responderMessage && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
+                    <p className="text-[10px] font-mono text-emerald-400 uppercase mb-1">Update from {activeEmergency.responderName}:</p>
+                    <p className="text-sm text-white italic">"{activeEmergency.responderMessage}"</p>
+                  </div>
+                )}
+                <div className="space-y-2 pt-2">
+                  <label className="text-[9px] font-mono text-white/20 uppercase block">Status Update for Sender:</label>
+                  <input
+                    type="text"
+                    value={responderMessage}
+                    onChange={(e) => setResponderMessage(e.target.value)}
+                    placeholder="E.g., Assistance arrived / ETA 2 mins"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-red-500/50 transition-all outline-none"
+                  />
+                </div>
               </div>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveEmergency(null);
-                }}
-                className="w-full bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase relative z-[300]"
-              >
-                ACKNOWLEDGE & DISMISS
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setActiveEmergency(null)}
+                  className="flex-1 bg-white/5 text-white/40 font-mono font-black py-5 rounded-2xl hover:bg-white/10 transition-all text-xs tracking-widest uppercase"
+                >
+                  DISMISS
+                </button>
+                <button
+                  onClick={() => handleResponderReply(activeEmergency)}
+                  className="flex-[2] bg-white text-black font-mono font-black py-5 rounded-2xl hover:bg-white/90 active:scale-[0.98] transition-all text-sm tracking-widest uppercase relative z-[300]"
+                >
+                  SEND UPDATE & ACK
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
