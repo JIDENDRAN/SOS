@@ -68,7 +68,8 @@ export default function App() {
   const [isLiveLocation, setIsLiveLocation] = useState(false);
   const [realCoords, setRealCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [activeTab, setActiveTab] = useState<'map' | 'messages' | 'system'>('map');
-  const [p2pMode] = useState<'wifi'>('wifi');
+  const [p2pMode, setP2pMode] = useState<'wifi' | 'bluetooth' | 'p2p'>('wifi');
+  const [p2pPeer, setP2pPeer] = useState<RTCPeerConnection | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [logs, setLogs] = useState<{ time: string; msg: string; type: 'info' | 'alert' | 'success' }[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -284,8 +285,13 @@ class BluetoothMeshManager(private val context: Context) {
   }, [isLiveLocation]);
 
   useEffect(() => {
-    // Bluetooth simulation removed as requested, now always using Local WiFi Mesh
-  }, []);
+    if (p2pMode === 'bluetooth') {
+      const timer = setTimeout(() => {
+        addLog('BLE: Scanning for nearby SOS signals...', 'info');
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [p2pMode]);
 
   const triggerAlertSound = () => {
     try {
@@ -315,6 +321,31 @@ class BluetoothMeshManager(private val context: Context) {
     } catch (err) {
       console.warn("Audio context failed to start:", err);
     }
+  };
+
+  const initP2P = async () => {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    const dc = pc.createDataChannel("sos-mesh");
+    dc.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'SOS') handleIncomingSOS(data.payload, "p2p-peer");
+    };
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        // Output candidate for manual copy-paste signaling
+        console.log("ICE Candidate:", JSON.stringify(e.candidate));
+      }
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    setP2pPeer(pc);
+    addLog("P2P Offer created. Ready for handshake.", "success");
+    // In a real app, we'd show a QR code with `offer` here
   };
 
   const handleIncomingSOS = (msg: SOSMessage, fromId: string) => {
@@ -777,21 +808,41 @@ class BluetoothMeshManager(private val context: Context) {
             </div>
             <p className="text-[8px] font-mono text-white/20 uppercase text-center">Use Subnet Scan if on Wi-Fi Hotspot</p>
           </div>
-
           <div className="space-y-4">
             <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-white/30 uppercase">
               <div className="flex items-center gap-2">
                 <Activity size={12} />
-                MESH STATUS
+                MESH PROTOCOL
               </div>
-              <span className="text-emerald-500/50">LOCAL LINK ACTIVE</span>
             </div>
-            <div className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-xl flex items-center justify-between">
-              <span className="text-[10px] font-mono text-emerald-400 font-bold uppercase tracking-wider">Protocol: M-WIFI</span>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-[9px] font-mono text-white/40 uppercase">Encrypted</span>
-              </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => setP2pMode('wifi')}
+                className={cn(
+                  "py-2 rounded-lg border text-[8px] font-mono font-bold transition-all",
+                  p2pMode === 'wifi' ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" : "bg-black/20 border-white/5 text-white/30"
+                )}
+              >
+                WIFI
+              </button>
+              <button
+                onClick={() => { setP2pMode('bluetooth'); scanNearbyBLE(); }}
+                className={cn(
+                  "py-2 rounded-lg border text-[8px] font-mono font-bold transition-all",
+                  p2pMode === 'bluetooth' ? "bg-blue-500/10 border-blue-500/50 text-blue-400" : "bg-black/20 border-white/5 text-white/30"
+                )}
+              >
+                BLE
+              </button>
+              <button
+                onClick={() => { setP2pMode('p2p'); initP2P(); }}
+                className={cn(
+                  "py-2 rounded-lg border text-[8px] font-mono font-bold transition-all",
+                  p2pMode === 'p2p' ? "bg-purple-500/10 border-purple-500/50 text-purple-400" : "bg-black/20 border-white/5 text-white/30"
+                )}
+              >
+                DIRECT
+              </button>
             </div>
           </div>
 
