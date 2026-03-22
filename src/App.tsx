@@ -62,7 +62,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [activeEmergency, setActiveEmergency] = useState<SOSMessage | null>(null);
-  const [seenMessages] = useState(new Set<string>());
+  const [seenMessages] = useState<Set<string>>(() => new Set<string>());
   const [routingMode, setRoutingMode] = useState<RoutingMode>(RoutingMode.FLOODING);
   const [ttl, setTtl] = useState(5);
   const [isLiveLocation, setIsLiveLocation] = useState(false);
@@ -320,16 +320,19 @@ class BluetoothMeshManager(private val context: Context) {
       // Simulate Bluetooth proximity sending
       const nearbyNodes = nodes.filter(n => {
         const dist = Math.sqrt(Math.pow(n.x - myPos.x, 2) + Math.pow(n.y - myPos.y, 2));
-        return dist < 30 && n.id !== myId;
+        return dist < 60 && n.id !== myId; // Increased from 30
       });
 
       if (nearbyNodes.length > 0) {
         addLog(`BLE: Broadcasting to ${nearbyNodes.length} nearby peers`, 'success');
+        // In simulation, we just log it. For real P2P, we would use native bridge.
       } else {
-        addLog('BLE: Scanning for peers in range...', 'info');
+        addLog('BLE: No peers found within 60 units. Move closer.', 'info');
       }
     } else if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'SEND_SOS', payload: msg }));
+    } else {
+      addLog('Mesh offline - check protocol selection.', 'alert');
     }
   };
 
@@ -367,7 +370,8 @@ class BluetoothMeshManager(private val context: Context) {
   };
 
   const scanNearbyBLE = async () => {
-    if (!navigator.bluetooth) {
+    const nav = navigator as any;
+    if (!nav.bluetooth) {
       addLog("Bluetooth API not supported in this browser.", "alert");
       return;
     }
@@ -375,7 +379,7 @@ class BluetoothMeshManager(private val context: Context) {
     addLog("Scanning for BLE SOS beacons...", "info");
     try {
       // Look for any devices that advertise a common SOS service UUID
-      const device = await navigator.bluetooth.requestDevice({
+      const device = await nav.bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: ['battery_service', 'heart_rate'] // Standard services for demo, would be custom in production
       });

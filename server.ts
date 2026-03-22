@@ -84,7 +84,7 @@ async function startServer() {
 
   function updateEncounterProbabilities(node: Node) {
     const P_INIT = 0.75;
-    const RANGE = 20; // Virtual units
+    const RANGE = 40; // Virtual units - Increased for easier testing
 
     nodes.forEach((otherNode, otherId) => {
       if (otherId === node.id) return;
@@ -102,7 +102,7 @@ async function startServer() {
     const sender = nodes.get(senderId);
     if (!sender) return;
 
-    const RANGE = 25; // Broadcast range
+    const RANGE = 60; // Broadcast range - Increased from 25 for easier testing
     nodes.forEach((node, id) => {
       if (id === senderId) return;
       const dist = Math.sqrt(Math.pow(sender.x - node.x, 2) + Math.pow(sender.y - node.y, 2));
